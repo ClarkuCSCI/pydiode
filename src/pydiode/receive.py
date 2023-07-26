@@ -29,7 +29,7 @@ class AsyncWriter:
                 else:
                     logging.warning(
                         "Receieved data's digest != EOF's digest: "
-                        f"{received_digest} != {eof_digest}"
+                        f"{received_digest.hex()} != {eof_digest.hex()}"
                     )
                     self.exit_code.set_result(1)
                 break
