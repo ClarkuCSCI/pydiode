@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import logging
 import math
 import os
@@ -147,10 +148,11 @@ class AsyncSleeper:
             self.n = self.n_sleeps
 
 
-async def _send_eof(chunk_duration, transport):
+async def _send_eof(chunk_duration, transport, digest):
     sleeper = AsyncSleeper(N_EOF, chunk_duration)
     for seq in range(N_EOF):
-        data = PACKET_HEADER.pack(b"K", N_EOF, seq)
+        header = PACKET_HEADER.pack(b"K", N_EOF, seq)
+        data = header + digest
         transport.sendto(data)
         log_packet("Sent", data)
         await sleeper.sleep()
@@ -210,6 +212,9 @@ async def send_data(
     # The current chunk color
     color = b"R"
 
+    # Hash of the sent data, for verification by receiver
+    sha = hashlib.sha256()
+
     # Open a UDP "connection"
     loop = asyncio.get_event_loop()
     on_con_lost = loop.create_future()
@@ -226,10 +231,11 @@ async def send_data(
             chunk = chunks.pop(0)
             # There will never be more data
             if chunk is None:
-                await _send_eof(chunk_duration, transport)
+                await _send_eof(chunk_duration, transport, sha.digest())
                 break
             # We have a chunk of data to send
             else:
+                sha.update(chunk)
                 await _send_chunk(
                     chunk, color, redundancy, chunk_duration, transport
                 )

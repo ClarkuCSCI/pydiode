@@ -133,11 +133,15 @@ async def async_main():
         )
     # If we are receiving data
     else:
+        loop = asyncio.get_running_loop()
+        exit_code = loop.create_future()
         queue = asyncio.Queue()
-        writer = AsyncWriter(queue)
+        writer = AsyncWriter(queue, exit_code)
         await asyncio.gather(
             receive_data(queue, args.read_ip, args.port), writer.write()
         )
+        await exit_code
+        exit(exit_code.result())
 
 
 def main():
