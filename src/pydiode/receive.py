@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import logging
 import sys
 
@@ -6,8 +7,11 @@ from .common import log_packet, PACKET_HEADER
 
 
 class AsyncWriter:
-    def __init__(self, queue):
+    def __init__(self, queue, exit_code):
         self.queue = queue
+        self.exit_code = exit_code
+        # Hash of the received data, used for verification
+        self.sha = hashlib.sha256()
         # TODO If connected to a terminal, display output immediately
 
     async def write(self):
@@ -18,8 +22,19 @@ class AsyncWriter:
             data = await self.queue.get()
             self.queue.task_done()
             if data is None:
+                eof_digest = await self.queue.get()
+                received_digest = self.sha.digest()
+                if received_digest == eof_digest:
+                    self.exit_code.set_result(0)
+                else:
+                    logging.warning(
+                        "Receieved data's digest != EOF's digest: "
+                        f"{received_digest.hex()} != {eof_digest.hex()}"
+                    )
+                    self.exit_code.set_result(1)
                 break
             else:
+                self.sha.update(data)
                 await asyncio.get_event_loop().run_in_executor(
                     None, sys.stdout.buffer.write, data
                 )
@@ -39,7 +54,10 @@ class DiodeReceiveProtocol(asyncio.DatagramProtocol):
         log_packet("Received", data)
         # If EOF (blacK) packet
         if color == b"K":
+            # Put None to indicate the transfer is complete
             self.queue.put_nowait(None)
+            # Put the EOF's payload, a digest of the sent data
+            self.queue.put_nowait(data[PACKET_HEADER.size :])
             self.on_con_lost.set_result(True)
         # Is this packet for an incomplete chunk?
         elif not self.completed[color]:
