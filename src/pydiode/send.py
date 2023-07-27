@@ -81,14 +81,14 @@ def append_to_chunks(chunks, data, chunk_max_data_bytes):
         else:
             # Append a mutable bytearray, so we can add data later
             chunks.append(bytearray(data))
-    # If the last chunk has room for data
+    # If there is a chunk, and the last chunk has room for data
     else:
         # How much data can fit in the last chunk?
         remaining_space = chunk_max_data_bytes - len(chunks[-1])
         chunks[-1].extend(data[:remaining_space])
         # If some of the data didn't fit in the last chunk
         if remaining_space < len(data):
-            chunks.append(data[remaining_space:])
+            chunks.append(bytearray(data[remaining_space:]))
 
 
 async def read_data(chunks, chunk_max_data_bytes, chunk_duration):

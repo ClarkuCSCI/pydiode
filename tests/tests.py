@@ -80,3 +80,5 @@ class TestChunks(unittest.TestCase):
         self.assertEqual([b"Not full"], chunks)
         append_to_chunks(chunks, b"Hello", 10)
         self.assertEqual([b"Not fullHe", b"llo"], chunks)
+        append_to_chunks(chunks, b"!", 10)
+        self.assertEqual([b"Not fullHe", b"llo!"], chunks)
