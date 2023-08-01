@@ -1,14 +1,30 @@
+import subprocess
+import sys
 from tkinter import Listbox, StringVar, Tk, ttk
 from tkinter.filedialog import askdirectory, askopenfilenames
 
 
 def set_target_directory(target):
+    """
+    Ask the user for a directory, then update the target text field to display
+    this directory.
+
+    :param target: A text field depicting the target
+    """
     target_directory = askdirectory()
     if target_directory:
         target.set(target_directory)
 
 
 def add_source_files(sources_var, sources_list):
+    """
+    Ask the user to select files to transfer, then updated the Listbox.
+
+    :param sources_var: A StringVar representing the list of sources, which is
+                        linked to the Listbox
+    :param sources_list: A list of the source files currently in the Listbox
+    """
+    # TODO Support adding directories
     selected_sources = askopenfilenames()
     new_sources = set(selected_sources) - set(sources_list)
     if new_sources:
@@ -17,11 +33,109 @@ def add_source_files(sources_var, sources_list):
 
 
 def remove_source_files(sources_var, sources_list, sources_box):
+    """
+    Remove the selected source files from the Listbox.
+
+    :param sources_var: A StringVar representing the list of sources, which is
+                        linked to the Listbox
+    :param sources_list: A list of the source files currently in the Listbox
+    :param sources_box: A Listbox showing the source files
+    """
     source_indices = sources_box.curselection()
     # Remove in reverse order, to avoid removing the wrong elements
     for i in sorted(source_indices, reverse=True):
         sources_list.pop(i)
     sources_var.set(sources_list)
+
+
+def send_files(sources_list, send_ip, receive_ip, port):
+    """
+    Send the listed files through the data diode.
+
+    :param sources_list: A list of filenames to send through the data diode
+    :param send_ip: Send data from this IP
+    :param receive_ip: Send data to this IP
+    :param port: Send data using this port
+    """
+    tar = subprocess.Popen(
+        [sys.executable, "-m", "pydiode.tar", "create"] + sources_list,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    pydiode = subprocess.Popen(
+        [
+            sys.executable,
+            "-m",
+            "pydiode.main",
+            "send",
+            receive_ip,
+            send_ip,
+            "--port",
+            port,
+        ],
+        stdin=tar.stdout,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    # TODO Use poll, and include a status indicator
+    tar.wait()
+    pydiode.wait()
+    # Clean up
+    tar.stdout.close()
+    tar.stderr.close()
+    pydiode.stdout.close()
+    pydiode.stderr.close()
+
+
+def receive_files(target_dir, receive_ip, port):
+    """
+    Receive files from the data diode.
+
+    :param target_dir: Where to save the files received
+    :param receive_ip: Receive data using this IP
+    :param port: Receive data using this port
+    """
+    pydiode = subprocess.Popen(
+        [
+            sys.executable,
+            "-m",
+            "pydiode.main",
+            "receive",
+            receive_ip,
+            "--port",
+            port,
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    tar = subprocess.Popen(
+        [sys.executable, "-m", "pydiode.tar", "extract", target_dir],
+        stdin=pydiode.stdout,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    # TODO Use poll, and include a status indicator
+    pydiode.wait()
+    tar.wait()
+    # Clean up
+    tar.stdout.close()
+    tar.stderr.close()
+    pydiode.stdout.close()
+    pydiode.stderr.close()
+
+
+def update_start(start, sources_list):
+    """
+    Enable or disable the start button based on whether there are any source
+    files to send.
+
+    :param start: The start button
+    :param sources_list: The files in the file transfer queue
+    """
+    if sources_list:
+        start.state(["!disabled"])
+    else:
+        start.state(["disabled"])
 
 
 def main():
@@ -42,6 +156,7 @@ def main():
     ttk.Label(tx_frame, text="File transfer queue:").grid(column=0, row=0)
     sources_list = []
     sources_var = StringVar(value=sources_list)
+    sources_var.trace("w", lambda *args: update_start(start, sources_list))
     sources_box = Listbox(
         tx_frame, listvariable=sources_var, selectmode="extended"
     )
@@ -62,23 +177,35 @@ def main():
             sources_var, sources_list, sources_box
         ),
     ).grid(column=1, row=0)
-    start = ttk.Button(tx_frame, text="Start Sending", command=root.destroy)
+    start = ttk.Button(
+        tx_frame,
+        text="Start Sending",
+        command=lambda: send_files(
+            sources_list, send_ip.get(), receive_ip.get(), port.get()
+        ),
+    )
     start.grid(column=0, row=3, pady=5)
-    start.state(["disabled"])
+    update_start(start, sources_list)
 
     # Configure the receive tab
     ttk.Label(rx_frame, text="Save files to:").grid(column=0, row=0)
     target = StringVar()
     ttk.Entry(rx_frame, textvariable=target).grid(column=0, row=1)
-    target.set("~/Desktop")
+    # TODO Default to the user's desktop: ~/Desktop isn't cross-platform and
+    # doesn't work outside the shell
+    target.set("/Users/pstory/Desktop")
     ttk.Button(
         rx_frame,
         text="Browse...",
         command=lambda: set_target_directory(target),
     ).grid(column=1, row=1)
-    ttk.Button(rx_frame, text="Start Receiving", command=root.destroy).grid(
-        column=0, row=2, pady=5
-    )
+    ttk.Button(
+        rx_frame,
+        text="Start Receiving",
+        command=lambda: receive_files(
+            target.get(), receive_ip.get(), port.get()
+        ),
+    ).grid(column=0, row=2, pady=5)
 
     # Configure the settings tab
     ttk.Label(settings_frame, text="Sender IP:").grid(
