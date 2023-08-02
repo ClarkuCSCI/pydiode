@@ -147,24 +147,39 @@ def main():
 
     # Create three tabs
     nb = ttk.Notebook(root)
-    tx_frame = ttk.Frame(nb)
-    rx_frame = ttk.Frame(nb)
-    settings_frame = ttk.Frame(nb)
-    nb.add(tx_frame, text="Send")
-    nb.add(rx_frame, text="Receive")
-    nb.add(settings_frame, text="Settings")
-    nb.grid()
+    tx_outer = ttk.Frame(nb)
+    rx_outer = ttk.Frame(nb)
+    settings_outer = ttk.Frame(nb)
+    nb.add(tx_outer, text="Send")
+    nb.add(rx_outer, text="Receive")
+    nb.add(settings_outer, text="Settings")
+    # Allow the notebook to grow
+    nb.grid(sticky="nsew")
+    root.columnconfigure(0, weight=1)
+    root.rowconfigure(0, weight=1)
+    # Allow each tab's outer frame to grow
+    tx_outer.columnconfigure(0, weight=1)
+    tx_outer.rowconfigure(0, weight=1)
+    rx_outer.columnconfigure(0, weight=1)
+    rx_outer.rowconfigure(0, weight=1)
+    settings_outer.columnconfigure(0, weight=1)
+    settings_outer.rowconfigure(0, weight=1)
 
     # Configure the send tab
-    ttk.Label(tx_frame, text="File transfer queue:").grid(column=0, row=0)
+    tx_inner = ttk.Frame(tx_outer)
+    tx_inner.grid(column=0, row=0, sticky="N", pady=5)
+    ttk.Label(tx_inner, text="File transfer queue:").grid(column=0, row=0)
     sources_list = []
     sources_var = StringVar(value=sources_list)
     sources_var.trace("w", lambda *args: update_start(start, sources_list))
     sources_box = Listbox(
-        tx_frame, listvariable=sources_var, selectmode="extended"
+        tx_inner,
+        listvariable=sources_var,
+        selectmode="extended",
+        width=50,
     )
     sources_box.grid(column=0, row=1)
-    pm_frame = ttk.Frame(tx_frame)
+    pm_frame = ttk.Frame(tx_inner)
     pm_frame.grid(column=0, row=2, sticky="W")
     ttk.Button(
         pm_frame,
@@ -181,7 +196,7 @@ def main():
         ),
     ).grid(column=1, row=0)
     start = ttk.Button(
-        tx_frame,
+        tx_inner,
         text="Start Sending",
         command=lambda: send_files(
             sources_list, send_ip.get(), receive_ip.get(), port.get()
@@ -191,17 +206,19 @@ def main():
     update_start(start, sources_list)
 
     # Configure the receive tab
-    ttk.Label(rx_frame, text="Save files to:").grid(column=0, row=0)
+    rx_inner = ttk.Frame(rx_outer)
+    rx_inner.grid(column=0, row=0, sticky="N", pady=5)
+    ttk.Label(rx_inner, text="Save files to:").grid(column=0, row=0)
     target = StringVar()
-    ttk.Entry(rx_frame, textvariable=target).grid(column=0, row=1)
+    ttk.Entry(rx_inner, textvariable=target, width=35).grid(column=0, row=1)
     target.set(os.getcwd())
     ttk.Button(
-        rx_frame,
+        rx_inner,
         text="Browse...",
         command=lambda: set_target_directory(target),
     ).grid(column=1, row=1)
     ttk.Button(
-        rx_frame,
+        rx_inner,
         text="Start Receiving",
         command=lambda: receive_files(
             target.get(), receive_ip.get(), port.get()
@@ -209,21 +226,25 @@ def main():
     ).grid(column=0, row=2, pady=5)
 
     # Configure the settings tab
-    ttk.Label(settings_frame, text="Sender IP:").grid(
+    settings_inner = ttk.Frame(settings_outer)
+    settings_inner.grid(column=0, row=0, sticky="N", pady=5)
+    settings_inner.grid_columnconfigure(0, weight=1)
+    settings_inner.grid_rowconfigure(0, weight=1)
+    ttk.Label(settings_inner, text="Sender IP:").grid(
         column=0, row=0, sticky="E"
     )
     send_ip = StringVar()
-    ttk.Entry(settings_frame, textvariable=send_ip).grid(column=1, row=0)
+    ttk.Entry(settings_inner, textvariable=send_ip).grid(column=1, row=0)
     send_ip.set("10.0.1.2")
-    ttk.Label(settings_frame, text="Receiver IP:").grid(
+    ttk.Label(settings_inner, text="Receiver IP:").grid(
         column=0, row=1, sticky="E"
     )
     receive_ip = StringVar()
-    ttk.Entry(settings_frame, textvariable=receive_ip).grid(column=1, row=1)
+    ttk.Entry(settings_inner, textvariable=receive_ip).grid(column=1, row=1)
     receive_ip.set("10.0.1.1")
-    ttk.Label(settings_frame, text="Port:").grid(column=0, row=2, sticky="E")
+    ttk.Label(settings_inner, text="Port:").grid(column=0, row=2, sticky="E")
     port = StringVar()
-    ttk.Entry(settings_frame, textvariable=port).grid(column=1, row=2)
+    ttk.Entry(settings_inner, textvariable=port).grid(column=1, row=2)
     port.set("1234")
     # TODO Add options for maximum bitrate and redundancy
 
