@@ -1,3 +1,4 @@
+import os
 import subprocess
 import sys
 from tkinter import Listbox, StringVar, Tk, ttk
@@ -11,7 +12,7 @@ def set_target_directory(target):
 
     :param target: A text field depicting the target
     """
-    target_directory = askdirectory()
+    target_directory = askdirectory(initialdir=target.get())
     if target_directory:
         target.set(target_directory)
 
@@ -24,8 +25,10 @@ def add_source_files(sources_var, sources_list):
                         linked to the Listbox
     :param sources_list: A list of the source files currently in the Listbox
     """
-    # TODO Support adding directories
-    selected_sources = askopenfilenames()
+    # If files have been added, the dialogue will remember the directory.
+    # If no files have been added, start at the current working directory.
+    initialdir = None if sources_list else os.getcwd()
+    selected_sources = askopenfilenames(initialdir=initialdir)
     new_sources = set(selected_sources) - set(sources_list)
     if new_sources:
         sources_list.extend(sorted(new_sources))
@@ -191,9 +194,7 @@ def main():
     ttk.Label(rx_frame, text="Save files to:").grid(column=0, row=0)
     target = StringVar()
     ttk.Entry(rx_frame, textvariable=target).grid(column=0, row=1)
-    # TODO Default to the user's desktop: ~/Desktop isn't cross-platform and
-    # doesn't work outside the shell
-    target.set("/Users/pstory/Desktop")
+    target.set(os.getcwd())
     ttk.Button(
         rx_frame,
         text="Browse...",
