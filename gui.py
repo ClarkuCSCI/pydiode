@@ -7,7 +7,10 @@ from tkinter import IntVar, Listbox, StringVar, Tk, ttk
 from tkinter.filedialog import askdirectory, askopenfilenames
 from tkinter.messagebox import showerror
 
+# Save the configuration file in the user's home folder
 CONFIG = pathlib.Path().home() / ".pydiode.ini"
+# Check subprocesses every SLEEP milliseconds
+SLEEP = 250
 
 
 def set_target_directory(target):
@@ -73,7 +76,42 @@ def get_process_error(name, popen):
     return error_msg
 
 
-def send_files(sources_list, send_ip, receive_ip, port):
+def check_subprocesses(widget, *args):
+    """
+    Check whether all the subprocesses have exited. If so, display their error
+    messages and clean up after them.
+
+    :param widget: Used to schedule another check
+    :param args: An array of tuples, each containing a subprocess's name and
+                 its popen object.
+    """
+    # TODO Include a progress bar
+    # Are any of the subprocesses still running?
+    still_running = False
+    for name, popen in args:
+        still_running = still_running or (popen.poll() is None)
+    # If subprocesses are still running, keep waiting for them
+    if still_running:
+        widget.after(SLEEP, lambda: check_subprocesses(widget, *args))
+    else:
+        # If a subprocess exited irregularly, describe the issue
+        error_msgs = []
+        for name, popen in args:
+            if popen.returncode:
+                error_msgs.append(get_process_error(name, popen))
+        if error_msgs:
+            error_msgs.insert(0, "Error:")
+            showerror(
+                title="Error",
+                message="\n".join(error_msgs),
+            )
+        # Clean up
+        for name, popen in args:
+            popen.stdout.close()
+            popen.stderr.close()
+
+
+def send_files(root, sources_list, send_ip, receive_ip, port):
     """
     Send the listed files through the data diode.
 
@@ -102,29 +140,17 @@ def send_files(sources_list, send_ip, receive_ip, port):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    # TODO Use poll, and include a progress bar
-    tar.wait()
-    pydiode.wait()
-    # If either subprocess exited irregularly, describe the issue
-    error_msgs = []
-    if tar.returncode:
-        error_msgs.append(get_process_error("tar", tar))
-    if pydiode.returncode:
-        error_msgs.append(get_process_error("pydiode", pydiode))
-    if error_msgs:
-        error_msgs.insert(0, "Error Sending Files:")
-        showerror(
-            title="Error Sending Files",
-            message="\n".join(error_msgs),
-        )
-    # Clean up
-    tar.stdout.close()
-    tar.stderr.close()
-    pydiode.stdout.close()
-    pydiode.stderr.close()
+    root.after(
+        SLEEP,
+        lambda: check_subprocesses(
+            root,
+            ("tar", tar),
+            ("pydiode", pydiode),
+        ),
+    )
 
 
-def receive_files(target_dir, receive_ip, port):
+def receive_files(root, target_dir, receive_ip, port):
     """
     Receive files from the data diode.
 
@@ -151,26 +177,10 @@ def receive_files(target_dir, receive_ip, port):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    # TODO Use poll, and include a progress bar
-    pydiode.wait()
-    tar.wait()
-    # If either subprocess exited irregularly, describe the issue
-    error_msgs = []
-    if pydiode.returncode:
-        error_msgs.append(get_process_error("pydiode", pydiode))
-    if tar.returncode:
-        error_msgs.append(get_process_error("tar", tar))
-    if error_msgs:
-        error_msgs.insert(0, "Error Receiving Files:")
-        showerror(
-            title="Error Receiving Files",
-            message="\n".join(error_msgs),
-        )
-    # Clean up
-    tar.stdout.close()
-    tar.stderr.close()
-    pydiode.stdout.close()
-    pydiode.stderr.close()
+    root.after(
+        SLEEP,
+        lambda: check_subprocesses(root, ("pydiode", pydiode), ("tar", tar)),
+    )
 
 
 def update_start(start, sources_list):
@@ -262,7 +272,7 @@ def main():
         tx_inner,
         text="Start Sending",
         command=lambda: send_files(
-            sources_list, send_ip.get(), receive_ip.get(), port.get()
+            root, sources_list, send_ip.get(), receive_ip.get(), port.get()
         ),
     )
     start.grid(column=0, row=3, pady=5)
@@ -286,7 +296,7 @@ def main():
         rx_inner,
         text="Start Receiving",
         command=lambda: receive_files(
-            target.get(), receive_ip.get(), port.get()
+            root, target.get(), receive_ip.get(), port.get()
         ),
     ).grid(column=0, row=2, pady=5)
 
