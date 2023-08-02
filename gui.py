@@ -1,8 +1,12 @@
+import configparser
 import os
+import pathlib
 import subprocess
 import sys
-from tkinter import Listbox, StringVar, Tk, ttk
+from tkinter import IntVar, Listbox, StringVar, Tk, ttk
 from tkinter.filedialog import askdirectory, askopenfilenames
+
+CONFIG = pathlib.Path().home() / ".pydiode.ini"
 
 
 def set_target_directory(target):
@@ -142,6 +146,13 @@ def update_start(start, sources_list):
 
 
 def main():
+    # Load configuration
+    config = configparser.ConfigParser()
+    config.read(CONFIG)
+    if "pydiode" not in config:
+        config["pydiode"] = {}
+
+    # Create the main window
     root = Tk()
     root.title("pydiode GUI")
     root.minsize(width=500, height=400)
@@ -165,6 +176,14 @@ def main():
     rx_outer.rowconfigure(0, weight=1)
     settings_outer.columnconfigure(0, weight=1)
     settings_outer.rowconfigure(0, weight=1)
+    # Switch to the last used tab
+    nb.select(config["pydiode"].get("tab", 0))
+    # Keep track of the active tab
+    active_tab = IntVar()
+    nb.bind(
+        "<<NotebookTabChanged>>",
+        lambda *args: active_tab.set(nb.index(nb.select())),
+    )
 
     # Configure the send tab
     tx_inner = ttk.Frame(tx_outer)
@@ -215,7 +234,7 @@ def main():
     ttk.Entry(rx_inner, textvariable=target).grid(column=0, row=1, sticky="EW")
     rx_inner.columnconfigure(0, weight=1)
     rx_inner.rowconfigure(1, weight=1)
-    target.set(os.getcwd())
+    target.set(config["pydiode"].get("target", os.getcwd()))
     ttk.Button(
         rx_inner,
         text="Browse...",
@@ -239,21 +258,32 @@ def main():
     )
     send_ip = StringVar()
     ttk.Entry(settings_inner, textvariable=send_ip).grid(column=1, row=0)
-    send_ip.set("10.0.1.2")
+    send_ip.set(config["pydiode"].get("send_ip", "10.0.1.2"))
     ttk.Label(settings_inner, text="Receiver IP:").grid(
         column=0, row=1, sticky="E"
     )
     receive_ip = StringVar()
     ttk.Entry(settings_inner, textvariable=receive_ip).grid(column=1, row=1)
-    receive_ip.set("10.0.1.1")
+    receive_ip.set(config["pydiode"].get("receive_ip", "10.0.1.1"))
     ttk.Label(settings_inner, text="Port:").grid(column=0, row=2, sticky="E")
     port = StringVar()
     ttk.Entry(settings_inner, textvariable=port).grid(column=1, row=2)
-    port.set("1234")
+    port.set(config["pydiode"].get("port", "1234"))
     # TODO Add options for maximum bitrate and redundancy
 
     # Start handling user input
     root.mainloop()
+
+    # Save settings
+    config["pydiode"] = {
+        "tab": active_tab.get(),
+        "target": target.get(),
+        "send_ip": send_ip.get(),
+        "receive_ip": receive_ip.get(),
+        "port": port.get(),
+    }
+    with open(CONFIG, "w") as configfile:
+        config.write(configfile)
 
 
 if __name__ == "__main__":
