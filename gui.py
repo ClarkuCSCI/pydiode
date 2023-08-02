@@ -144,6 +144,7 @@ def update_start(start, sources_list):
 def main():
     root = Tk()
     root.title("pydiode GUI")
+    root.minsize(width=500, height=400)
 
     # Create three tabs
     nb = ttk.Notebook(root)
