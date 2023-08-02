@@ -5,6 +5,7 @@ import subprocess
 import sys
 from tkinter import IntVar, Listbox, StringVar, Tk, ttk
 from tkinter.filedialog import askdirectory, askopenfilenames
+from tkinter.messagebox import showerror
 
 CONFIG = pathlib.Path().home() / ".pydiode.ini"
 
@@ -55,6 +56,23 @@ def remove_source_files(sources_var, sources_list, sources_box):
     sources_var.set(sources_list)
 
 
+def get_process_error(name, popen):
+    """
+    Get a message describing a subprocess that exited irregularly.
+
+    :param name: The name of the process
+    :param popen: The subprocess.Popen object of a terminated process
+    :returns: A string describing the return code and stderr
+    """
+    trimmed_stderr = popen.stderr.read().decode("utf-8").strip()
+    error_msg = f'"{name}" exited with code {popen.returncode}'
+    if trimmed_stderr:
+        error_msg += f' and stderr "{trimmed_stderr}".'
+    else:
+        error_msg += "."
+    return error_msg
+
+
 def send_files(sources_list, send_ip, receive_ip, port):
     """
     Send the listed files through the data diode.
@@ -84,9 +102,21 @@ def send_files(sources_list, send_ip, receive_ip, port):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    # TODO Use poll, and include a status indicator
+    # TODO Use poll, and include a progress bar
     tar.wait()
     pydiode.wait()
+    # If either subprocess exited irregularly, describe the issue
+    error_msgs = []
+    if tar.returncode:
+        error_msgs.append(get_process_error("tar", tar))
+    if pydiode.returncode:
+        error_msgs.append(get_process_error("pydiode", pydiode))
+    if error_msgs:
+        error_msgs.insert(0, "Error Sending Files:")
+        showerror(
+            title="Error Sending Files",
+            message="\n".join(error_msgs),
+        )
     # Clean up
     tar.stdout.close()
     tar.stderr.close()
@@ -121,9 +151,21 @@ def receive_files(target_dir, receive_ip, port):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    # TODO Use poll, and include a status indicator
+    # TODO Use poll, and include a progress bar
     pydiode.wait()
     tar.wait()
+    # If either subprocess exited irregularly, describe the issue
+    error_msgs = []
+    if pydiode.returncode:
+        error_msgs.append(get_process_error("pydiode", pydiode))
+    if tar.returncode:
+        error_msgs.append(get_process_error("tar", tar))
+    if error_msgs:
+        error_msgs.insert(0, "Error Receiving Files:")
+        showerror(
+            title="Error Receiving Files",
+            message="\n".join(error_msgs),
+        )
     # Clean up
     tar.stdout.close()
     tar.stderr.close()
