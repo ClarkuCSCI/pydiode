@@ -167,7 +167,7 @@ def main():
 
     # Configure the send tab
     tx_inner = ttk.Frame(tx_outer)
-    tx_inner.grid(column=0, row=0, sticky="N", pady=5)
+    tx_inner.grid(column=0, row=0, sticky="NSEW", pady=5)
     ttk.Label(tx_inner, text="File transfer queue:").grid(column=0, row=0)
     sources_list = []
     sources_var = StringVar(value=sources_list)
@@ -176,9 +176,10 @@ def main():
         tx_inner,
         listvariable=sources_var,
         selectmode="extended",
-        width=50,
     )
-    sources_box.grid(column=0, row=1)
+    sources_box.grid(column=0, row=1, sticky="NSEW")
+    tx_inner.columnconfigure(0, weight=1)
+    tx_inner.rowconfigure(1, weight=1)
     pm_frame = ttk.Frame(tx_inner)
     pm_frame.grid(column=0, row=2, sticky="W")
     ttk.Button(
@@ -207,10 +208,12 @@ def main():
 
     # Configure the receive tab
     rx_inner = ttk.Frame(rx_outer)
-    rx_inner.grid(column=0, row=0, sticky="N", pady=5)
+    rx_inner.grid(column=0, row=0, sticky="NEW", pady=5)
     ttk.Label(rx_inner, text="Save files to:").grid(column=0, row=0)
     target = StringVar()
-    ttk.Entry(rx_inner, textvariable=target, width=35).grid(column=0, row=1)
+    ttk.Entry(rx_inner, textvariable=target).grid(column=0, row=1, sticky="EW")
+    rx_inner.columnconfigure(0, weight=1)
+    rx_inner.rowconfigure(1, weight=1)
     target.set(os.getcwd())
     ttk.Button(
         rx_inner,
