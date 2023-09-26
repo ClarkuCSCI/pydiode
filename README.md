@@ -14,7 +14,17 @@ To install from source, clone the repo then run:
 pip install .
 ```
 
-## Usage
+To run the GUI, Tk must be installed. For example, on macOS:
+```
+sudo port install py311-tkinter
+sudo port install tk -x11 +quartz
+```
+
+## GUI Usage
+
+The `pydiode-gui` command will launch the user interface.
+
+## Command-Line Usage
 
 Documentation:
 ```

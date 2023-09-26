@@ -132,7 +132,7 @@ async def async_main():
             ),
         )
     # If we are receiving data
-    else:
+    elif "read_ip" in args:
         loop = asyncio.get_running_loop()
         exit_code = loop.create_future()
         queue = asyncio.Queue()
@@ -142,6 +142,8 @@ async def async_main():
         )
         await exit_code
         exit(exit_code.result())
+    else:
+        parser.print_help()
 
 
 def main():
