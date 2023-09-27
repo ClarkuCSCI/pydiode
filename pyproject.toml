@@ -22,5 +22,5 @@ classifiers = [
 "Bug Tracker" = "https://github.com/ClarkuCSCI/pydiode/issues"
 
 [project.scripts]
-pydiode = "pydiode.main:main"
+pydiode = "pydiode.pydiode:main"
 pydiode-gui = "pydiode.gui:main"

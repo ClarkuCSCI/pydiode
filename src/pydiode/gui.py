@@ -7,7 +7,7 @@ from tkinter import IntVar, Listbox, StringVar, Tk, ttk
 from tkinter.filedialog import askdirectory, askopenfilenames
 from tkinter.messagebox import showerror
 
-import pydiode.main
+import pydiode.pydiode
 import pydiode.tar
 
 # Save the configuration file in the user's home folder
@@ -339,7 +339,7 @@ def main():
         sys.argv.pop(0)
         if sys.argv[0] == "pydiode":
             # With pydiode as the first argument, launch pydiode
-            pydiode.main.main()
+            pydiode.pydiode.main()
         elif sys.argv[0] == "tar":
             # With tar as the first argument, launch tar
             pydiode.tar.main()
