@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import logging
+import sys
 
 import pydiode.common
 from .common import BYTE, MAX_PAYLOAD, PACKET_HEADER, UDP_MAX_BYTES
@@ -141,7 +142,7 @@ async def async_main():
             receive_data(queue, args.read_ip, args.port), writer.write()
         )
         await exit_code
-        exit(exit_code.result())
+        sys.exit(exit_code.result())
     else:
         parser.print_help()
 
