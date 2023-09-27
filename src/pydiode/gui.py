@@ -7,6 +7,9 @@ from tkinter import IntVar, Listbox, StringVar, Tk, ttk
 from tkinter.filedialog import askdirectory, askopenfilenames
 from tkinter.messagebox import showerror
 
+import pydiode.main
+import pydiode.tar
+
 # Save the configuration file in the user's home folder
 CONFIG = pathlib.Path().home() / ".pydiode.ini"
 # Check subprocesses every SLEEP milliseconds
@@ -85,7 +88,7 @@ def check_subprocesses(widget, *args):
     :param args: An array of tuples, each containing a subprocess's name and
                  its popen object.
     """
-    # TODO Include a progress bar
+    # TODO Include a progress bar, and ensure we stop checking eventually.
     # Are any of the subprocesses still running?
     still_running = False
     for name, popen in args:
@@ -121,21 +124,12 @@ def send_files(root, sources_list, send_ip, receive_ip, port):
     :param port: Send data using this port
     """
     tar = subprocess.Popen(
-        [sys.executable, "-m", "pydiode.tar", "create"] + sources_list,
+        sys.argv + ["tar", "create"] + sources_list,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
     pydiode = subprocess.Popen(
-        [
-            sys.executable,
-            "-m",
-            "pydiode.main",
-            "send",
-            receive_ip,
-            send_ip,
-            "--port",
-            port,
-        ],
+        sys.argv + ["pydiode", "send", receive_ip, send_ip, "--port", port],
         stdin=tar.stdout,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -159,20 +153,12 @@ def receive_files(root, target_dir, receive_ip, port):
     :param port: Receive data using this port
     """
     pydiode = subprocess.Popen(
-        [
-            sys.executable,
-            "-m",
-            "pydiode.main",
-            "receive",
-            receive_ip,
-            "--port",
-            port,
-        ],
+        sys.argv + ["pydiode", "receive", receive_ip, "--port", port],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
     tar = subprocess.Popen(
-        [sys.executable, "-m", "pydiode.tar", "extract", target_dir],
+        sys.argv + ["tar", "extract", target_dir],
         stdin=pydiode.stdout,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -197,7 +183,7 @@ def update_start(start, sources_list):
         start.state(["disabled"])
 
 
-def main():
+def gui_main():
     # Load configuration
     config = configparser.ConfigParser()
     config.read(CONFIG)
@@ -336,6 +322,30 @@ def main():
     }
     with open(CONFIG, "w") as configfile:
         config.write(configfile)
+
+
+def main():
+    """
+    Running Python subprocess from a frozen app is complicated, because the
+    frozen app doesn't have a regular a python interpreter. However, the frozen
+    app can create a subprocess of its executable, with alternate arguments.
+    This executable can call the appropriate methods, based on its arguments.
+    """
+    if len(sys.argv) == 1:
+        # Without arguments, just launch the GUI
+        gui_main()
+    else:
+        # Remove the executable from argv for compatibility with argparse
+        sys.argv.pop(0)
+        if sys.argv[0] == "pydiode":
+            # With pydiode as the first argument, launch pydiode
+            pydiode.main.main()
+        elif sys.argv[0] == "tar":
+            # With tar as the first argument, launch tar
+            pydiode.tar.main()
+        else:
+            print(f"Invalid arguments: {sys.argv}", file=sys.stderr)
+            sys.exit(1)
 
 
 if __name__ == "__main__":
