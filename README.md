@@ -52,7 +52,7 @@ With debug-level logging, you will see details about each packet sent and receiv
 ### Run Unit Tests
 
 ```
-python -m unittest tests.tests
+python -m unittest discover
 ```
 
 Since [the unit tests run on the installed code](https://blog.ionelmc.ro/2014/05/25/python-packaging/), remember to install the latest version of the code before running the unit tests.
