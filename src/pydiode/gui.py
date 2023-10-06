@@ -14,6 +14,14 @@ import pydiode.tar
 CONFIG = pathlib.Path().home() / ".pydiode.ini"
 # Check subprocesses every SLEEP milliseconds
 SLEEP = 250
+# Number of bits in a byte
+BYTE = 8
+# pydiode's default settings. Eventually, these will be configurable.
+MAX_BITRATE = 1000000000
+REDUNDANCY = 2
+# Extra time needed for transfers, considering more than just bitrate and
+# redundancy. Determined experimentally with a 1 Gbit transfer.
+OVERHEAD = 1.085
 
 
 def set_target_directory(target):
@@ -114,7 +122,7 @@ def check_subprocesses(widget, *args):
             popen.stderr.close()
 
 
-def send_files(root, sources_list, send_ip, receive_ip, port):
+def send_files(root, sources_list, send_ip, receive_ip, port, progress_bar):
     """
     Send the listed files through the data diode.
 
@@ -122,14 +130,50 @@ def send_files(root, sources_list, send_ip, receive_ip, port):
     :param send_ip: Send data from this IP
     :param receive_ip: Send data to this IP
     :param port: Send data using this port
+    :param progress_bar: Progress bar widget
     """
+    # Sum of file sizes (bytes) for time estimate
+    size = 0
+    for source in sources_list:
+        size += os.path.getsize(source)
+    # How much time will the transfer take, in milliseconds?
+    est_time = size * BYTE / MAX_BITRATE * REDUNDANCY * OVERHEAD * 1000
+    # Increment every 25 milliseconds, for smooth animation.
+    increment_interval = 25
+    # By how much do we increment each time?
+    n_increments = est_time / increment_interval
+    increment_size = progress_bar["maximum"] / n_increments
+
+    def increment():
+        progress_bar["value"] += increment_size
+        if progress_bar["value"] < progress_bar["maximum"]:
+            root.after(increment_interval, increment)
+        else:
+            # Ensure the value doesn't exceed the max, or the bar will loop
+            progress_bar["value"] = progress_bar["maximum"]
+
+    progress_bar["value"] = 0
+    root.after(increment_interval, increment)
+
     tar = subprocess.Popen(
         sys.argv + ["tar", "create"] + sources_list,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
     pydiode = subprocess.Popen(
-        sys.argv + ["pydiode", "send", receive_ip, send_ip, "--port", port],
+        sys.argv
+        + [
+            "pydiode",
+            "send",
+            receive_ip,
+            send_ip,
+            "--port",
+            port,
+            "--max-bitrate",
+            str(MAX_BITRATE),
+            "--redundancy",
+            str(REDUNDANCY),
+        ],
         stdin=tar.stdout,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -258,10 +302,17 @@ def gui_main():
         tx_inner,
         text="Start Sending",
         command=lambda: send_files(
-            root, sources_list, send_ip.get(), receive_ip.get(), port.get()
+            root,
+            sources_list,
+            send_ip.get(),
+            receive_ip.get(),
+            port.get(),
+            send_progress,
         ),
     )
     start.grid(column=0, row=3, pady=5)
+    send_progress = ttk.Progressbar(tx_inner, length=200, maximum=1000)
+    send_progress.grid(column=0, row=4)
     update_start(start, sources_list)
 
     # Configure the receive tab
