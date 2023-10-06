@@ -22,6 +22,8 @@ REDUNDANCY = 2
 # Extra time needed for transfers, considering more than just bitrate and
 # redundancy. Determined experimentally with a 1 Gbit transfer.
 OVERHEAD = 1.085
+# Increment progress bars every 25 milliseconds, for smooth animation.
+INCREMENT_INTERVAL = 25
 
 
 def set_target_directory(target):
@@ -96,7 +98,6 @@ def check_subprocesses(widget, *args):
     :param args: An array of tuples, each containing a subprocess's name and
                  its popen object.
     """
-    # TODO Include a progress bar, and ensure we stop checking eventually.
     # Are any of the subprocesses still running?
     still_running = False
     for name, popen in args:
@@ -138,22 +139,20 @@ def send_files(root, sources_list, send_ip, receive_ip, port, progress_bar):
         size += os.path.getsize(source)
     # How much time will the transfer take, in milliseconds?
     est_time = size * BYTE / MAX_BITRATE * REDUNDANCY * OVERHEAD * 1000
-    # Increment every 25 milliseconds, for smooth animation.
-    increment_interval = 25
     # By how much do we increment each time?
-    n_increments = est_time / increment_interval
+    n_increments = est_time / INCREMENT_INTERVAL
     increment_size = progress_bar["maximum"] / n_increments
 
     def increment():
         progress_bar["value"] += increment_size
         if progress_bar["value"] < progress_bar["maximum"]:
-            root.after(increment_interval, increment)
+            root.after(INCREMENT_INTERVAL, increment)
         else:
             # Ensure the value doesn't exceed the max, or the bar will loop
             progress_bar["value"] = progress_bar["maximum"]
 
     progress_bar["value"] = 0
-    root.after(increment_interval, increment)
+    root.after(INCREMENT_INTERVAL, increment)
 
     tar = subprocess.Popen(
         sys.argv + ["tar", "create"] + sources_list,
@@ -188,13 +187,14 @@ def send_files(root, sources_list, send_ip, receive_ip, port, progress_bar):
     )
 
 
-def receive_files(root, target_dir, receive_ip, port):
+def receive_files(root, target_dir, receive_ip, port, progress_bar):
     """
     Receive files from the data diode.
 
     :param target_dir: Where to save the files received
     :param receive_ip: Receive data using this IP
     :param port: Receive data using this port
+    :param progress_bar: Progress bar widget
     """
     pydiode = subprocess.Popen(
         sys.argv + ["pydiode", "receive", receive_ip, "--port", port],
@@ -211,6 +211,20 @@ def receive_files(root, target_dir, receive_ip, port):
         SLEEP,
         lambda: check_subprocesses(root, ("pydiode", pydiode), ("tar", tar)),
     )
+
+    def animate():
+        # An "indeterminate" progress bar will animate until its value is 0
+        progress_bar["value"] = 1
+        # If tar hasn't exited, keep animating
+        if tar.poll() is None:
+            root.after(INCREMENT_INTERVAL, animate)
+        else:
+            # Empty the progress bar by switching modes
+            progress_bar["value"] = 0
+            progress_bar["mode"] = "determinate"
+
+    progress_bar["mode"] = "indeterminate"
+    root.after(SLEEP, animate)
 
 
 def update_start(start, sources_list):
@@ -333,9 +347,11 @@ def gui_main():
         rx_inner,
         text="Start Receiving",
         command=lambda: receive_files(
-            root, target.get(), receive_ip.get(), port.get()
+            root, target.get(), receive_ip.get(), port.get(), receive_progress
         ),
     ).grid(column=0, row=2, pady=5)
+    receive_progress = ttk.Progressbar(rx_inner, length=200)
+    receive_progress.grid(column=0, row=3)
 
     # Configure the settings tab
     settings_inner = ttk.Frame(settings_outer)
