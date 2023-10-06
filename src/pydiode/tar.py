@@ -6,7 +6,10 @@ import tarfile
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Create or extract a streamed gzipped tar file"
+        description="""
+                    Create or extract a streamed tar file. To minimize the
+                    attack surface, compression is not used.
+                    """
     )
     subparsers = parser.add_subparsers(
         help="Whether to run in create or extract mode"
@@ -27,11 +30,11 @@ def main():
     args = parser.parse_args()
 
     if "filename" in args:
-        with tarfile.open(mode="w|gz", fileobj=sys.stdout.buffer) as tar:
+        with tarfile.open(mode="w|", fileobj=sys.stdout.buffer) as tar:
             for filename in args.filename:
                 tar.add(filename, arcname=os.path.basename(filename))
     elif "path" in args:
-        with tarfile.open(fileobj=sys.stdin.buffer, mode="r|gz") as tar:
+        with tarfile.open(fileobj=sys.stdin.buffer, mode="r|") as tar:
             tar.extractall(args.path)
     else:
         parser.print_help()
