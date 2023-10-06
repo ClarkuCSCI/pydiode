@@ -3,7 +3,7 @@ import os
 import pathlib
 import subprocess
 import sys
-from tkinter import IntVar, Listbox, StringVar, Tk, ttk
+from tkinter import BooleanVar, IntVar, Listbox, StringVar, Tk, ttk
 from tkinter.filedialog import askdirectory, askopenfilenames
 from tkinter.messagebox import showerror
 
@@ -89,48 +89,60 @@ def get_process_error(name, popen):
     return error_msg
 
 
-def check_subprocesses(widget, *args):
+def check_subprocesses(widget, cancelled, *args):
     """
     Check whether all the subprocesses have exited. If so, display their error
     messages and clean up after them.
 
     :param widget: Used to schedule another check
+    :param cancelled: Boolean variable indicating cancellation request
     :param args: An array of tuples, each containing a subprocess's name and
                  its popen object.
     """
-    # Are any of the subprocesses still running?
-    still_running = False
-    for name, popen in args:
-        still_running = still_running or (popen.poll() is None)
-    # If subprocesses are still running, keep waiting for them
-    if still_running:
-        widget.after(SLEEP, lambda: check_subprocesses(widget, *args))
+    # If requested, cancel subprocesses
+    if cancelled.get():
+        # Signal each process to exit
+        for name, popen in args:
+            popen.terminate()
+        # Mark this cancellation request as handled
+        cancelled.set(False)
+        # At the next check, hopefully the processes will have exited
+        widget.after(
+            SLEEP, lambda: check_subprocesses(widget, cancelled, *args)
+        )
     else:
-        # If a subprocess exited irregularly, describe the issue
-        error_msgs = []
+        # Are any of the subprocesses still running?
+        still_running = False
         for name, popen in args:
-            if popen.returncode:
-                error_msgs.append(get_process_error(name, popen))
-        if error_msgs:
-            error_msgs.insert(0, "Error:")
-            showerror(
-                title="Error",
-                message="\n".join(error_msgs),
+            still_running = still_running or (popen.poll() is None)
+        # If subprocesses are still running, keep waiting for them
+        if still_running:
+            widget.after(
+                SLEEP, lambda: check_subprocesses(widget, cancelled, *args)
             )
-        # Clean up
-        for name, popen in args:
-            popen.stdout.close()
-            popen.stderr.close()
+        else:
+            # If a subprocess exited irregularly, describe the issue
+            error_msgs = []
+            for name, popen in args:
+                if popen.returncode:
+                    error_msgs.append(get_process_error(name, popen))
+            if error_msgs:
+                error_msgs.insert(0, "Error:")
+                showerror(
+                    title="Error",
+                    message="\n".join(error_msgs),
+                )
+            # Clean up
+            for name, popen in args:
+                popen.stdout.close()
+                popen.stderr.close()
 
 
-def send_files(root, sources_list, send_ip, receive_ip, port, progress_bar):
+def get_increment_size(sources_list, progress_bar):
     """
-    Send the listed files through the data diode.
+    By how much should we increment the progress bar?
 
     :param sources_list: A list of filenames to send through the data diode
-    :param send_ip: Send data from this IP
-    :param receive_ip: Send data to this IP
-    :param port: Send data using this port
     :param progress_bar: Progress bar widget
     """
     # Sum of file sizes (bytes) for time estimate
@@ -141,104 +153,157 @@ def send_files(root, sources_list, send_ip, receive_ip, port, progress_bar):
     est_time = size * BYTE / MAX_BITRATE * REDUNDANCY * OVERHEAD * 1000
     # By how much do we increment each time?
     n_increments = est_time / INCREMENT_INTERVAL
-    increment_size = progress_bar["maximum"] / n_increments
-
-    def increment():
-        progress_bar["value"] += increment_size
-        if progress_bar["value"] < progress_bar["maximum"]:
-            root.after(INCREMENT_INTERVAL, increment)
-        else:
-            # Ensure the value doesn't exceed the max, or the bar will loop
-            progress_bar["value"] = progress_bar["maximum"]
-
-    progress_bar["value"] = 0
-    root.after(INCREMENT_INTERVAL, increment)
-
-    tar = subprocess.Popen(
-        sys.argv + ["tar", "create"] + sources_list,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    pydiode = subprocess.Popen(
-        sys.argv
-        + [
-            "pydiode",
-            "send",
-            receive_ip,
-            send_ip,
-            "--port",
-            port,
-            "--max-bitrate",
-            str(MAX_BITRATE),
-            "--redundancy",
-            str(REDUNDANCY),
-        ],
-        stdin=tar.stdout,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    root.after(
-        SLEEP,
-        lambda: check_subprocesses(
-            root,
-            ("tar", tar),
-            ("pydiode", pydiode),
-        ),
-    )
+    return progress_bar["maximum"] / n_increments
 
 
-def receive_files(root, target_dir, receive_ip, port, progress_bar):
+def send_files(
+    root,
+    sources_list,
+    send_ip,
+    receive_ip,
+    port,
+    button,
+    progress_bar,
+    cancelled,
+):
     """
-    Receive files from the data diode.
+    Send the listed files through the data diode. If we are already sending,
+    calling this method again cancels receiving.
+
+    :param sources_list: A list of filenames to send through the data diode
+    :param send_ip: Send data from this IP
+    :param receive_ip: Send data to this IP
+    :param port: Send data using this port
+    :param button: Start/Cancel button widget
+    :param progress_bar: Progress bar widget
+    :param cancelled: Boolean variable indicating cancellation request
+    """
+    if button["text"] == "Cancel Sending":
+        cancelled.set(True)
+    else:
+        tar = subprocess.Popen(
+            sys.argv + ["tar", "create"] + sources_list,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        pydiode = subprocess.Popen(
+            sys.argv
+            + [
+                "pydiode",
+                "send",
+                receive_ip,
+                send_ip,
+                "--port",
+                port,
+                "--max-bitrate",
+                str(MAX_BITRATE),
+                "--redundancy",
+                str(REDUNDANCY),
+            ],
+            stdin=tar.stdout,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        root.after(
+            SLEEP,
+            lambda: check_subprocesses(
+                root,
+                cancelled,
+                ("tar", tar),
+                ("pydiode", pydiode),
+            ),
+        )
+
+        increment_size = get_increment_size(sources_list, progress_bar)
+
+        def animate():
+            # If either subprocess hasn't exited, keep animating
+            if (tar.poll() is None) or (pydiode.poll() is None):
+                progress_bar["value"] += increment_size
+                # Ensure the value doesn't exceed the max, or the bar will loop
+                if progress_bar["value"] > progress_bar["maximum"]:
+                    progress_bar["value"] = progress_bar["maximum"]
+                root.after(INCREMENT_INTERVAL, animate)
+            # After both subprocesses exit, allow more transfers
+            else:
+                button["text"] = "Start Sending"
+                # If either subprocess had a non-zero exit code
+                if tar.poll() or pydiode.poll():
+                    progress_bar["value"] = 0
+                else:
+                    progress_bar["value"] = progress_bar["maximum"]
+
+        button["text"] = "Cancel Sending"
+        progress_bar["value"] = 0
+        root.after(INCREMENT_INTERVAL, animate)
+
+
+def receive_files(
+    root, target_dir, receive_ip, port, button, progress_bar, cancelled
+):
+    """
+    Receive files from the data diode. If we are already receiving, calling
+    this method again cancels receiving.
 
     :param target_dir: Where to save the files received
     :param receive_ip: Receive data using this IP
     :param port: Receive data using this port
+    :param button: Start/Cancel button widget
     :param progress_bar: Progress bar widget
+    :param cancelled: Boolean variable indicating cancellation request
     """
-    pydiode = subprocess.Popen(
-        sys.argv + ["pydiode", "receive", receive_ip, "--port", port],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    tar = subprocess.Popen(
-        sys.argv + ["tar", "extract", target_dir],
-        stdin=pydiode.stdout,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    root.after(
-        SLEEP,
-        lambda: check_subprocesses(root, ("pydiode", pydiode), ("tar", tar)),
-    )
+    if button["text"] == "Cancel Receiving":
+        cancelled.set(True)
+    else:
+        pydiode = subprocess.Popen(
+            sys.argv + ["pydiode", "receive", receive_ip, "--port", port],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        tar = subprocess.Popen(
+            sys.argv + ["tar", "extract", target_dir],
+            stdin=pydiode.stdout,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        root.after(
+            SLEEP,
+            lambda: check_subprocesses(
+                root, cancelled, ("pydiode", pydiode), ("tar", tar)
+            ),
+        )
 
-    def animate():
-        # An "indeterminate" progress bar will animate until its value is 0
-        progress_bar["value"] = 1
-        # If tar hasn't exited, keep animating
-        if tar.poll() is None:
-            root.after(INCREMENT_INTERVAL, animate)
-        else:
-            # Empty the progress bar by switching modes
-            progress_bar["value"] = 0
-            progress_bar["mode"] = "determinate"
+        def animate():
+            # An "indeterminate" progress bar will animate until its value is 0
+            progress_bar["value"] = 1
+            # If either subprocess hasn't exited, keep animating
+            if (tar.poll() is None) or (pydiode.poll() is None):
+                root.after(SLEEP, animate)
+            # When tar exits, prepare to receive again
+            else:
+                # Allow receiving more files
+                button["text"] = "Start Receiving"
+                # Empty the progress bar by switching modes
+                progress_bar["value"] = 0
+                progress_bar["mode"] = "determinate"
 
-    progress_bar["mode"] = "indeterminate"
-    root.after(SLEEP, animate)
+        button["text"] = "Cancel Receiving"
+        progress_bar["mode"] = "indeterminate"
+        root.after(SLEEP, animate)
 
 
-def update_start(start, sources_list):
+def update_tx_btn(tx_btn, sources_list):
     """
-    Enable or disable the start button based on whether there are any source
-    files to send.
+    Enable or disable the Start Sending button based on whether there are any
+    source files to send.
 
-    :param start: The start button
+    :param tx_btn: The Start Sending button
     :param sources_list: The files in the file transfer queue
     """
     if sources_list:
-        start.state(["!disabled"])
+        tx_btn.state(["!disabled"])
     else:
-        start.state(["disabled"])
+        tx_btn.state(["disabled"])
 
 
 def gui_main():
@@ -287,7 +352,7 @@ def gui_main():
     ttk.Label(tx_inner, text="File transfer queue:").grid(column=0, row=0)
     sources_list = []
     sources_var = StringVar(value=sources_list)
-    sources_var.trace("w", lambda *args: update_start(start, sources_list))
+    sources_var.trace("w", lambda *args: update_tx_btn(tx_btn, sources_list))
     sources_box = Listbox(
         tx_inner,
         listvariable=sources_var,
@@ -312,7 +377,7 @@ def gui_main():
             sources_var, sources_list, sources_box
         ),
     ).grid(column=1, row=0)
-    start = ttk.Button(
+    tx_btn = ttk.Button(
         tx_inner,
         text="Start Sending",
         command=lambda: send_files(
@@ -321,13 +386,16 @@ def gui_main():
             send_ip.get(),
             receive_ip.get(),
             port.get(),
-            send_progress,
+            tx_btn,
+            tx_progress,
+            tx_cancelled,
         ),
     )
-    start.grid(column=0, row=3, pady=5)
-    send_progress = ttk.Progressbar(tx_inner, length=200, maximum=1000)
-    send_progress.grid(column=0, row=4)
-    update_start(start, sources_list)
+    tx_btn.grid(column=0, row=3, pady=5)
+    tx_progress = ttk.Progressbar(tx_inner, length=200, maximum=1000)
+    tx_progress.grid(column=0, row=4)
+    tx_cancelled = BooleanVar(value=False)
+    update_tx_btn(tx_btn, sources_list)
 
     # Configure the receive tab
     rx_inner = ttk.Frame(rx_outer)
@@ -343,15 +411,23 @@ def gui_main():
         text="Browse...",
         command=lambda: set_target_directory(target),
     ).grid(column=1, row=1)
-    ttk.Button(
+    rx_btn = ttk.Button(
         rx_inner,
         text="Start Receiving",
         command=lambda: receive_files(
-            root, target.get(), receive_ip.get(), port.get(), receive_progress
+            root,
+            target.get(),
+            receive_ip.get(),
+            port.get(),
+            rx_btn,
+            rx_progress,
+            rx_cancelled,
         ),
-    ).grid(column=0, row=2, pady=5)
-    receive_progress = ttk.Progressbar(rx_inner, length=200)
-    receive_progress.grid(column=0, row=3)
+    )
+    rx_btn.grid(column=0, row=2, pady=5)
+    rx_progress = ttk.Progressbar(rx_inner, length=200)
+    rx_progress.grid(column=0, row=3)
+    rx_cancelled = BooleanVar(value=False)
 
     # Configure the settings tab
     settings_inner = ttk.Frame(settings_outer)
