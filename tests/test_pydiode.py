@@ -1,5 +1,6 @@
 import hashlib
 import os
+import socket
 import subprocess
 import tempfile
 import unittest
@@ -11,7 +12,7 @@ from pydiode.send import append_to_chunks
 MBIT_BYTES = 125000
 
 
-class TestPyDiode(unittest.TestCase):
+class TestIO(unittest.TestCase):
     def test_diode_file_io(self):
         with tempfile.TemporaryDirectory() as tempdir:
             RANDOM_DATA = os.path.join(tempdir, "random_data")
@@ -82,3 +83,64 @@ class TestChunks(unittest.TestCase):
         self.assertEqual([b"Not fullHe", b"llo"], chunks)
         append_to_chunks(chunks, b"!", 10)
         self.assertEqual([b"Not fullHe", b"llo!"], chunks)
+
+
+class TestSendErrors(unittest.TestCase):
+    def test_invalid_ip(self):
+        pydiode = subprocess.run(
+            ["pydiode", "send", "127.0.0.1", "127.0.0.xxx"], capture_output=True
+        )
+        self.assertNotEqual(0, pydiode.returncode)
+        self.assertEqual(b"", pydiode.stdout)
+        self.assertEqual(
+            "Can't send from IP address 127.0.0.xxx to 127.0.0.1\n",
+            pydiode.stderr.decode("utf-8"),
+        )
+
+    def test_unavailable_ip(self):
+        pydiode = subprocess.run(
+            ["pydiode", "send", "127.0.0.1", "8.8.8.8"], capture_output=True
+        )
+        self.assertNotEqual(0, pydiode.returncode)
+        self.assertEqual(b"", pydiode.stdout)
+        self.assertEqual(
+            "Can't send from IP address 8.8.8.8 to 127.0.0.1\n",
+            pydiode.stderr.decode("utf-8"),
+        )
+
+
+class TestReceiveErrors(unittest.TestCase):
+    def test_invalid_ip(self):
+        pydiode = subprocess.run(
+            ["pydiode", "receive", "127.0.0.xxx"], capture_output=True
+        )
+        self.assertNotEqual(0, pydiode.returncode)
+        self.assertEqual(b"", pydiode.stdout)
+        self.assertEqual(
+            "Can't listen on IP address 127.0.0.xxx\n",
+            pydiode.stderr.decode("utf-8"),
+        )
+
+    def test_unavailable_ip(self):
+        pydiode = subprocess.run(
+            ["pydiode", "receive", "8.8.8.8"], capture_output=True
+        )
+        self.assertNotEqual(0, pydiode.returncode)
+        self.assertEqual(b"", pydiode.stdout)
+        self.assertEqual(
+            "Can't listen on IP address 8.8.8.8\n",
+            pydiode.stderr.decode("utf-8"),
+        )
+
+    def test_allocated_ip(self):
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.bind(("127.0.0.1", 1234))
+            pydiode = subprocess.run(
+                ["pydiode", "receive", "127.0.0.1"], capture_output=True
+            )
+            self.assertNotEqual(0, pydiode.returncode)
+            self.assertEqual(b"", pydiode.stdout)
+            self.assertEqual(
+                "IP address 127.0.0.1 is already in use\n",
+                pydiode.stderr.decode("utf-8"),
+            )

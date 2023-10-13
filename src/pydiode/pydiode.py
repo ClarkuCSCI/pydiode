@@ -118,31 +118,69 @@ async def async_main():
         logging.debug(f"MAX_PAYLOAD={MAX_PAYLOAD}")
         logging.debug(f"chunk_max_data_bytes={chunk_max_data_bytes}")
 
-        # Queue of chunks to be sent
-        chunks = []
-        # Read and send data concurrently
-        await asyncio.gather(
-            read_data(chunks, chunk_max_data_bytes, args.chunk_duration),
-            send_data(
-                chunks,
-                args.chunk_duration,
-                args.redundancy,
-                args.read_ip,
-                args.write_ip,
-                args.port,
-            ),
-        )
+        try:
+            # Queue of chunks to be sent
+            chunks = []
+            # Read and send data concurrently
+            await asyncio.gather(
+                read_data(chunks, chunk_max_data_bytes, args.chunk_duration),
+                send_data(
+                    chunks,
+                    args.chunk_duration,
+                    args.redundancy,
+                    args.read_ip,
+                    args.write_ip,
+                    args.port,
+                ),
+            )
+        # Don't print the full stack trace for known error types
+        except OSError as e:
+            if str(e) in {
+                "[Errno 49] Can't assign requested address",
+                "[Errno 8] nodename nor servname provided, or not known",
+            }:
+                print(
+                    f"Can't send from IP address",
+                    args.write_ip,
+                    "to",
+                    args.read_ip,
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            else:
+                raise e
+
     # If we are receiving data
     elif "read_ip" in args:
-        loop = asyncio.get_running_loop()
-        exit_code = loop.create_future()
-        queue = asyncio.Queue()
-        writer = AsyncWriter(queue, exit_code)
-        await asyncio.gather(
-            receive_data(queue, args.read_ip, args.port), writer.write()
-        )
-        await exit_code
-        sys.exit(exit_code.result())
+        try:
+            loop = asyncio.get_running_loop()
+            exit_code = loop.create_future()
+            queue = asyncio.Queue()
+            writer = AsyncWriter(queue, exit_code)
+            await asyncio.gather(
+                receive_data(queue, args.read_ip, args.port), writer.write()
+            )
+            await exit_code
+            sys.exit(exit_code.result())
+        # Don't print the full stack trace for known error types
+        except OSError as e:
+            if str(e) in {
+                "[Errno 49] Can't assign requested address",
+                "[Errno 8] nodename nor servname provided, or not known",
+            }:
+                print(
+                    f"Can't listen on IP address {args.read_ip}",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            elif str(e) == "[Errno 48] Address already in use":
+                print(
+                    f"IP address {args.read_ip} is already in use",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            else:
+                raise e
     else:
         parser.print_help()
 

@@ -34,8 +34,18 @@ def main():
             for filename in args.filename:
                 tar.add(filename, arcname=os.path.basename(filename))
     elif "path" in args:
-        with tarfile.open(fileobj=sys.stdin.buffer, mode="r|") as tar:
-            tar.extractall(args.path)
+        try:
+            with tarfile.open(fileobj=sys.stdin.buffer, mode="r|") as tar:
+                tar.extractall(args.path)
+        # Don't print the full stack trace for known error types
+        except tarfile.ReadError as e:
+            if str(e) == "empty file":
+                # Empty input isn't a problem, so we should exit normally.
+                # This can happen when pydiode's STDOUT is connected to tar's
+                # STDIN, and pydiode exits without output.
+                sys.exit(0)
+            else:
+                raise e
     else:
         parser.print_help()
 

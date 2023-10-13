@@ -6,7 +6,7 @@ import unittest
 
 
 class TestTar(unittest.TestCase):
-    def test_tar(self):
+    def test_tar_untar(self):
         files = {"1.txt": "ABC", "2.txt": "DEF", "3.txt": "GHI"}
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -39,3 +39,16 @@ class TestTar(unittest.TestCase):
             for file, data in files.items():
                 with open(os.path.join(dest, file), "r") as f:
                     self.assertEqual(data, f.read())
+
+    def test_empty_input(self):
+        # For our usage, empty input via STDIN isn't a problem. tar with empty
+        # input should exit normally.
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tar = subprocess.run(
+                [sys.executable, "-m", "pydiode.tar", "extract", tmpdir],
+                capture_output=True,
+                stdin=subprocess.DEVNULL,
+            )
+            self.assertEqual(0, tar.returncode)
+            self.assertEqual(b"", tar.stdout)
+            self.assertEqual(b"", tar.stderr)
