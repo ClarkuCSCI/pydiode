@@ -124,7 +124,9 @@ def check_subprocesses(widget, cancelled, *args):
             # If a subprocess exited irregularly, describe the issue
             error_msgs = []
             for name, popen in args:
-                if popen.returncode:
+                # 0: normal exit.
+                # -15: SIGTERM, likely from user-initiated cancellation.
+                if popen.returncode not in {-15, 0}:
                     error_msgs.append(get_process_error(name, popen))
             if error_msgs:
                 error_msgs.insert(0, "Error:")
