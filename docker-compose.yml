@@ -1,0 +1,12 @@
+version: '3.4'
+
+services:
+  python:
+    build: "."
+    volumes:
+      - "./pyproject.toml:/root/pydiode/pyproject.toml"
+      - "./README.md:/root/pydiode/README.md"
+      - "./src:/root/pydiode/src/"
+      - "./tests:/root/pydiode/tests/"
+    command: ["sleep", "infinity"]
+    stop_signal: SIGKILL

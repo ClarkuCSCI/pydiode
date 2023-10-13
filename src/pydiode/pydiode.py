@@ -136,8 +136,12 @@ async def async_main():
         # Don't print the full stack trace for known error types
         except OSError as e:
             if str(e) in {
+                # macOS
                 "[Errno 49] Can't assign requested address",
                 "[Errno 8] nodename nor servname provided, or not known",
+                # Linux
+                "[Errno 99] Cannot assign requested address",
+                "[Errno -2] Name or service not known",
             }:
                 print(
                     f"Can't send from IP address",
@@ -165,15 +169,24 @@ async def async_main():
         # Don't print the full stack trace for known error types
         except OSError as e:
             if str(e) in {
+                # macOS
                 "[Errno 49] Can't assign requested address",
                 "[Errno 8] nodename nor servname provided, or not known",
+                # Linux
+                "[Errno 99] Cannot assign requested address",
+                "[Errno -2] Name or service not known",
             }:
                 print(
                     f"Can't listen on IP address {args.read_ip}",
                     file=sys.stderr,
                 )
                 sys.exit(1)
-            elif str(e) == "[Errno 48] Address already in use":
+            elif str(e) in {
+                # macOS
+                "[Errno 48] Address already in use",
+                # Linux
+                "[Errno 98] Address already in use",
+            }:
                 print(
                     f"IP address {args.read_ip} is already in use",
                     file=sys.stderr,
