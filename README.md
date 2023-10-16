@@ -62,15 +62,4 @@ Since [the unit tests run on the installed code](https://blog.ionelmc.ro/2014/05
 
 ### Packaging Frozen Executables
 
-First, install PyInstaller:
-```
-pip install pyinstaller
-```
-
-Next, build a frozen executable. On macOS:
-```
-cd src/pydiode
-pyinstaller --windowed --name pydiode gui.py
-```
-
-Note that PyInstaller creates a frozen executable for the platform you run it on. For example, when run on macOS, it creates `pydiode.app`.
+Follow the instructions in `freeze/README.md`
