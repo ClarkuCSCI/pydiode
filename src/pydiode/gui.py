@@ -277,7 +277,7 @@ def receive_files(
 
         def animate():
             # An "indeterminate" progress bar will animate until its value is 0
-            progress_bar["value"] = 1
+            progress_bar["value"] += 5
             # If either subprocess hasn't exited, keep animating
             if (tar.poll() is None) or (pydiode.poll() is None):
                 root.after(SLEEP, animate)
@@ -322,9 +322,9 @@ def gui_main():
 
     # Create three tabs
     nb = ttk.Notebook(root)
-    tx_outer = ttk.Frame(nb)
-    rx_outer = ttk.Frame(nb)
-    settings_outer = ttk.Frame(nb)
+    tx_outer = ttk.Frame(nb, padding=5)
+    rx_outer = ttk.Frame(nb, padding=5)
+    settings_outer = ttk.Frame(nb, padding=5)
     nb.add(tx_outer, text="Send")
     nb.add(rx_outer, text="Receive")
     nb.add(settings_outer, text="Settings")
@@ -350,7 +350,7 @@ def gui_main():
 
     # Configure the send tab
     tx_inner = ttk.Frame(tx_outer)
-    tx_inner.grid(column=0, row=0, sticky="NSEW", pady=5)
+    tx_inner.grid(column=0, row=0, sticky="NSEW")
     ttk.Label(tx_inner, text="File transfer queue:").grid(column=0, row=0)
     sources_list = []
     sources_var = StringVar(value=sources_list)
@@ -368,13 +368,13 @@ def gui_main():
     ttk.Button(
         pm_frame,
         text="+",
-        width=1,
+        width=2,
         command=lambda: add_source_files(sources_var, sources_list),
     ).grid(column=0, row=0)
     ttk.Button(
         pm_frame,
         text="-",
-        width=1,
+        width=2,
         command=lambda: remove_source_files(
             sources_var, sources_list, sources_box
         ),
@@ -401,7 +401,7 @@ def gui_main():
 
     # Configure the receive tab
     rx_inner = ttk.Frame(rx_outer)
-    rx_inner.grid(column=0, row=0, sticky="NEW", pady=5)
+    rx_inner.grid(column=0, row=0, sticky="NEW")
     ttk.Label(rx_inner, text="Save files to:").grid(column=0, row=0)
     target = StringVar()
     ttk.Entry(rx_inner, textvariable=target).grid(column=0, row=1, sticky="EW")
@@ -433,7 +433,7 @@ def gui_main():
 
     # Configure the settings tab
     settings_inner = ttk.Frame(settings_outer)
-    settings_inner.grid(column=0, row=0, sticky="N", pady=5)
+    settings_inner.grid(column=0, row=0, sticky="N")
     settings_inner.grid_columnconfigure(0, weight=1)
     settings_inner.grid_rowconfigure(0, weight=1)
     ttk.Label(settings_inner, text="Sender IP:").grid(
