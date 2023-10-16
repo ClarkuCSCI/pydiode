@@ -4,6 +4,8 @@ Transfer data through a unidirectional network (i.e., a data diode).
 
 ## Installation
 
+First, ensure you have Python version 3.11 or greater.
+
 To install from PyPI:
 ```
 pip install pydiode
@@ -14,11 +16,12 @@ Or to install from source, clone the repo then run:
 pip install .
 ```
 
-To run the GUI, Tk must be installed. For example, on macOS:
-```
-sudo port install py311-tkinter
-sudo port install tk -x11 +quartz
-```
+To run the GUI, Tk must be installed. For example:
+- On macOS:
+  - `sudo port install py311-tkinter`
+  - `sudo port install tk -x11 +quartz`
+- On Linux:
+  - `sudo apt install python3.11-tk`
 
 ## GUI Usage
 
