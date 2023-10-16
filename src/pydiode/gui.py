@@ -316,8 +316,8 @@ def gui_main():
         config["pydiode"] = {}
 
     # Create the main window
-    root = Tk()
-    root.title("pydiode GUI")
+    root = Tk(className="diodeTransfer")
+    root.title("Diode Transfer")
     root.minsize(width=500, height=400)
 
     # Create three tabs

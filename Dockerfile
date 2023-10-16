@@ -9,6 +9,9 @@ ADD README.md /root/pydiode/README.md
 # Install Python dependencies
 RUN pip install pyinstaller
 
+# Install fpm, for generating .deb packages
+RUN apt update && apt install -y ruby && gem install fpm
+
 # Install pydiode
 WORKDIR /root/pydiode
 RUN pip install .

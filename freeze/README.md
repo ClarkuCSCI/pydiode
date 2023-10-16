@@ -6,9 +6,16 @@ All platforms require PyInstaller, which can be installed with:
 ```
 pip install pyinstaller
 ```
+PyInstaller is installed automatically in Docker.
 
 To generate a .app file for macOS, from the top-level of the repo run:
 ```
 ./freeze/macOS.sh
 ```
-This will create `src/pydiode/dist/Diode Transfer.app`
+This will create `src/pydiode/dist/Diode Transfer.app`.
+
+To generate a .deb for Linux, from the top-level of the repo run:
+```
+docker compose exec python freeze/linux.sh
+```
+This will create `src/pydiode/dist/diode-transfer.deb`.

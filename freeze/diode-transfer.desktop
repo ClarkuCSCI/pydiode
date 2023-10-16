@@ -1,0 +1,23 @@
+[Desktop Entry]
+
+# The type of the thing this desktop file refers to (e.g. can be Link)
+Type=Application
+
+# The application name.
+Name=Diode Transfer
+
+# Tooltip comment to show in menus.
+Comment=Transfer files through a unidirectional network (i.e., a data diode).
+
+# The path (folder) in which the executable is run
+Path=/opt/diode-transfer
+
+# The executable (can include arguments)
+Exec="/opt/diode-transfer/Diode Transfer"
+
+# The icon for the entry, using the name from `hicolor/scalable` without the extension.
+# You can also use a full path to a file in /opt.
+Icon=OneWay
+
+# Associate the app with the icon. Matches the root's className in gui.py.
+StartupWMClass=diodeTransfer
