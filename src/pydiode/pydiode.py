@@ -175,6 +175,9 @@ async def async_main():
                 # Linux
                 "[Errno 99] Cannot assign requested address",
                 "[Errno -2] Name or service not known",
+                # Windows
+                "[Errno 11001] getaddrinfo failed",
+                "[WinError 10049] The requested address is not valid in its context",
             }:
                 print(
                     f"Can't listen on IP address {args.read_ip}",
@@ -186,6 +189,8 @@ async def async_main():
                 "[Errno 48] Address already in use",
                 # Linux
                 "[Errno 98] Address already in use",
+                # Windows
+                "[WinError 10048] Only one usage of each socket address (protocol/network address/port) is normally permitted",
             }:
                 print(
                     f"IP address {args.read_ip} is already in use",
