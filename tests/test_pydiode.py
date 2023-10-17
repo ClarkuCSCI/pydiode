@@ -93,8 +93,8 @@ class TestSendErrors(unittest.TestCase):
         self.assertNotEqual(0, pydiode.returncode)
         self.assertEqual(b"", pydiode.stdout)
         self.assertEqual(
-            "Can't send from IP address 127.0.0.xxx to 127.0.0.1\n",
-            pydiode.stderr.decode("utf-8"),
+            "Can't send from IP address 127.0.0.xxx to 127.0.0.1",
+            pydiode.stderr.decode("utf-8").strip(),
         )
 
     def test_unavailable_ip(self):
@@ -104,8 +104,8 @@ class TestSendErrors(unittest.TestCase):
         self.assertNotEqual(0, pydiode.returncode)
         self.assertEqual(b"", pydiode.stdout)
         self.assertEqual(
-            "Can't send from IP address 8.8.8.8 to 127.0.0.1\n",
-            pydiode.stderr.decode("utf-8"),
+            "Can't send from IP address 8.8.8.8 to 127.0.0.1",
+            pydiode.stderr.decode("utf-8").strip(),
         )
 
 
@@ -117,8 +117,8 @@ class TestReceiveErrors(unittest.TestCase):
         self.assertNotEqual(0, pydiode.returncode)
         self.assertEqual(b"", pydiode.stdout)
         self.assertEqual(
-            "Can't listen on IP address 127.0.0.xxx\n",
-            pydiode.stderr.decode("utf-8"),
+            "Can't listen on IP address 127.0.0.xxx",
+            pydiode.stderr.decode("utf-8").strip(),
         )
 
     def test_unavailable_ip(self):
@@ -128,8 +128,8 @@ class TestReceiveErrors(unittest.TestCase):
         self.assertNotEqual(0, pydiode.returncode)
         self.assertEqual(b"", pydiode.stdout)
         self.assertEqual(
-            "Can't listen on IP address 8.8.8.8\n",
-            pydiode.stderr.decode("utf-8"),
+            "Can't listen on IP address 8.8.8.8",
+            pydiode.stderr.decode("utf-8").strip(),
         )
 
     def test_allocated_ip(self):
@@ -141,6 +141,6 @@ class TestReceiveErrors(unittest.TestCase):
             self.assertNotEqual(0, pydiode.returncode)
             self.assertEqual(b"", pydiode.stdout)
             self.assertEqual(
-                "IP address 127.0.0.1 is already in use\n",
-                pydiode.stderr.decode("utf-8"),
+                "IP address 127.0.0.1 is already in use",
+                pydiode.stderr.decode("utf-8").strip(),
             )
