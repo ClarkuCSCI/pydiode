@@ -63,3 +63,9 @@ Since [the unit tests run on the installed code](https://blog.ionelmc.ro/2014/05
 ### Packaging Frozen Executables
 
 Follow the instructions in `freeze/README.md`
+
+## Citation
+
+If you use this code as part of a publication, please cite [our PEP '23 paper:](https://pep23.com/assets/pdf/pep23-paper7.pdf)
+
+> Peter Story, “Building an Affordable Data Diode to Protect Journalists,” Workshop on Privacy Engineering in Practice (PEP '23), August 2023
