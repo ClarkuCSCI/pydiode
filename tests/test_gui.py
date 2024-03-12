@@ -1,6 +1,6 @@
 import unittest
 
-from pydiode.gui import stuck_running
+from pydiode.gui.common import stuck_running
 
 
 class TestGUI(unittest.TestCase):

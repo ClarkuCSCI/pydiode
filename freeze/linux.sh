@@ -9,7 +9,7 @@ cd src/pydiode
 pyinstaller \
   --noconfirm \
   --name "Diode Transfer" \
-  gui.py
+  gui/main.py
 cd "$ROOT"
 
 # Generate .deb for distribution on Debian-based distros (e.g., Ubuntu, Tails)

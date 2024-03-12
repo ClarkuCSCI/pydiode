@@ -30,7 +30,7 @@ pyinstaller \
   --name "Diode Transfer" \
   --osx-bundle-identifier com.clarku.pydiode \
   --icon "$ROOT/freeze/OneWay.icns" \
-  gui.py
+  gui/main.py
 cd "$ROOT"
 
 # Remove .icns

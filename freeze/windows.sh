@@ -12,5 +12,5 @@ pyinstaller \
   --windowed \
   --name "Diode Transfer" \
   --icon "$ROOT\freeze\OneWay.png" \
-  gui.py
+  gui/main.py
 cd "$ROOT"
