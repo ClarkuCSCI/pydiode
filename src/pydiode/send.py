@@ -223,6 +223,7 @@ async def send_data(
         remote_addr=(read_ip, port),
         # Don't specify the send port: the OS will choose an available port
         local_addr=(write_ip, None),
+        allow_broadcast=True,
     )
 
     # Send data until a None chunk is encountered, indicating EOF
