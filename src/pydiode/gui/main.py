@@ -158,7 +158,7 @@ def gui_main():
     )
     receive_ip = StringVar()
     ttk.Entry(settings_inner, textvariable=receive_ip).grid(column=1, row=1)
-    receive_ip.set(config["pydiode"].get("receive_ip", "10.0.1.1"))
+    receive_ip.set(config["pydiode"].get("receive_ip", "10.0.1.255"))
     ttk.Label(settings_inner, text="Port:").grid(column=0, row=2, sticky="E")
     port = StringVar()
     ttk.Entry(settings_inner, textvariable=port).grid(column=1, row=2)
