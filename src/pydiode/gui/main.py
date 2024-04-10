@@ -1,6 +1,5 @@
 import configparser
-import os
-import pathlib
+from pathlib import Path
 import sys
 from tkinter import BooleanVar, IntVar, Listbox, StringVar, Tk, ttk
 
@@ -16,7 +15,7 @@ import pydiode.pydiode
 import pydiode.tar
 
 # Save the configuration file in the user's home folder
-CONFIG = pathlib.Path().home() / ".pydiode.ini"
+CONFIG = Path("~/.pydiode.ini").expanduser()
 
 
 def gui_main():
@@ -118,7 +117,9 @@ def gui_main():
     ttk.Entry(rx_inner, textvariable=target).grid(column=0, row=1, sticky="EW")
     rx_inner.columnconfigure(0, weight=1)
     rx_inner.rowconfigure(1, weight=1)
-    target.set(config["pydiode"].get("target", os.getcwd()))
+    target.set(
+        config["pydiode"].get("target", Path("~/Downloads").expanduser())
+    )
     ttk.Button(
         rx_inner,
         text="Browse...",

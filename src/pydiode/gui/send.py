@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import subprocess
 import sys
 from tkinter.filedialog import askopenfilenames
@@ -26,8 +27,8 @@ def add_source_files(sources_var, sources_list):
     :param sources_list: A list of the source files currently in the Listbox
     """
     # If files have been added, the dialogue will remember the directory.
-    # If no files have been added, start at the current working directory.
-    initialdir = None if sources_list else os.getcwd()
+    # If no files have been added, start in the Downloads folder.
+    initialdir = None if sources_list else Path("~/Downloads").expanduser()
     selected_sources = askopenfilenames(initialdir=initialdir)
     new_sources = set(selected_sources) - set(sources_list)
     if new_sources:
