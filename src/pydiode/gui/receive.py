@@ -4,6 +4,9 @@ from tkinter.filedialog import askdirectory
 
 from pydiode.gui.common import check_subprocesses, SLEEP
 
+# An array of tuples, each containing a subprocess's name and its popen object
+RECEIVE_PROCESSES = []
+
 
 def set_target_directory(target):
     """
@@ -45,11 +48,10 @@ def receive_files(
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
+        RECEIVE_PROCESSES.extend([("pydiode", pydiode), ("tar", tar)])
         root.after(
             SLEEP,
-            lambda: check_subprocesses(
-                root, cancelled, ("pydiode", pydiode), ("tar", tar)
-            ),
+            lambda: check_subprocesses(root, cancelled, RECEIVE_PROCESSES),
         )
 
         def animate():

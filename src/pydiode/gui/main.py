@@ -3,13 +3,17 @@ from pathlib import Path
 import sys
 from tkinter import BooleanVar, IntVar, Listbox, StringVar, Tk, ttk
 
-
-from pydiode.gui.receive import receive_files, set_target_directory
+from pydiode.gui.receive import (
+    receive_files,
+    set_target_directory,
+    RECEIVE_PROCESSES,
+)
 from pydiode.gui.send import (
     add_source_files,
     remove_source_files,
     send_files,
     update_tx_btn,
+    SEND_PROCESSES,
 )
 import pydiode.pydiode
 import pydiode.tar
@@ -166,8 +170,16 @@ def gui_main():
     port.set(config["pydiode"].get("port", "1234"))
     # TODO Add options for maximum bitrate and redundancy
 
+    # Override the default behavior of the Quit menu, so it doesn't cause the
+    # application to exit immediately
+    root.createcommand("tk::mac::Quit", root.quit)
+
     # Start handling user input
     root.mainloop()
+
+    # Cancel send and receive subprocesses
+    for name, popen in SEND_PROCESSES + RECEIVE_PROCESSES:
+        popen.terminate()
 
     # Save settings
     config["pydiode"] = {

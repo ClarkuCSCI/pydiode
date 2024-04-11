@@ -77,30 +77,30 @@ def stuck_running(returncodes):
         return False
 
 
-def check_subprocesses(widget, cancelled, *args):
+def check_subprocesses(widget, cancelled, processes):
     """
     Check whether all the subprocesses have exited. If so, display their error
     messages and clean up after them.
 
     :param widget: Used to schedule another check
     :param cancelled: Boolean variable indicating cancellation request
-    :param args: An array of tuples, each containing a subprocess's name and
-                 its popen object.
+    :param processes: An array of tuples, each containing a subprocess's name
+                      and its popen object.
     """
     # If requested, cancel subprocesses
     if cancelled.get():
         # Signal each process to exit
-        for name, popen in args:
+        for name, popen in processes:
             popen.terminate()
         # Mark this cancellation request as handled
         cancelled.set(False)
         # At the next check, hopefully the processes will have exited
         widget.after(
-            SLEEP, lambda: check_subprocesses(widget, cancelled, *args)
+            SLEEP, lambda: check_subprocesses(widget, cancelled, processes)
         )
     else:
         # Get returncodes for exited processes, None for running processes
-        returncodes = [popen.poll() for name, popen in args]
+        returncodes = [popen.poll() for name, popen in processes]
         # Are any of the subprocesses still running?
         still_running = any(code is None for code in returncodes)
 
@@ -109,10 +109,10 @@ def check_subprocesses(widget, cancelled, *args):
             # Request termination of the processes
             cancelled.set(True)
             widget.after(
-                SLEEP, lambda: check_subprocesses(widget, cancelled, *args)
+                SLEEP, lambda: check_subprocesses(widget, cancelled, processes)
             )
             # Describe the issue
-            process_names = [name for name, popen in args]
+            process_names = [name for name, popen in processes]
             error_msgs = get_premature_errors(
                 list(zip(process_names, returncodes))
             )
@@ -121,15 +121,18 @@ def check_subprocesses(widget, cancelled, *args):
         # If subprocesses are still running, keep waiting for them
         elif still_running:
             widget.after(
-                SLEEP, lambda: check_subprocesses(widget, cancelled, *args)
+                SLEEP, lambda: check_subprocesses(widget, cancelled, processes)
             )
         # Otherwise, all subprocesses have exited
         else:
             # If any subprocesses exited irregularly, describe the issue
-            error_msgs = get_process_errors(args)
+            error_msgs = get_process_errors(processes)
             if error_msgs:
                 showerror(title="Error", message=error_msgs)
             # Clean up
-            for name, popen in args:
+            for name, popen in processes:
                 popen.stdout.close()
                 popen.stderr.close()
+            # The array of subprocesses should be cleared, so it doesn't grow
+            # each time more subprocesses are started
+            processes.clear()

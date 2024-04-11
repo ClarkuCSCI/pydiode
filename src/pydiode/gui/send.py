@@ -16,6 +16,8 @@ REDUNDANCY = 2
 OVERHEAD = 1.085
 # Increment progress bars every 25 milliseconds, for smooth animation.
 INCREMENT_INTERVAL = 25
+# An array of tuples, each containing a subprocess's name and its popen object
+SEND_PROCESSES = []
 
 
 def add_source_files(sources_var, sources_list):
@@ -132,14 +134,10 @@ def send_files(
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
+        SEND_PROCESSES.extend([("tar", tar), ("pydiode", pydiode)])
         root.after(
             SLEEP,
-            lambda: check_subprocesses(
-                root,
-                cancelled,
-                ("tar", tar),
-                ("pydiode", pydiode),
-            ),
+            lambda: check_subprocesses(root, cancelled, SEND_PROCESSES),
         )
 
         increment_size = get_increment_size(sources_list, progress_bar)
