@@ -86,7 +86,7 @@ def get_increment_size(sources_list, progress_bar):
     return progress_bar["maximum"] / n_increments
 
 
-def send_files(
+def send_or_cancel(
     root,
     sources_list,
     send_ip,

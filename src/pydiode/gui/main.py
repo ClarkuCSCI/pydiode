@@ -11,7 +11,7 @@ from pydiode.gui.receive import (
 from pydiode.gui.send import (
     add_source_files,
     remove_source_files,
-    send_files,
+    send_or_cancel,
     update_tx_btn,
     SEND_PROCESSES,
 )
@@ -96,7 +96,7 @@ def gui_main():
     tx_btn = ttk.Button(
         tx_inner,
         text="Start Sending",
-        command=lambda: send_files(
+        command=lambda: send_or_cancel(
             root,
             sources_list,
             send_ip.get(),
