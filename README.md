@@ -15,6 +15,7 @@ Or to install from source, clone the repo then run:
 ```
 pip install .
 ```
+**Note:** If local installs are slow, remove large files from the repo (e.g., `build`, `dist`, and `random_data`). When installing, pip makes a copy of everything, so large files slow it down.
 
 To run the GUI, Tk must be installed. For example:
 - On macOS:
