@@ -4,7 +4,7 @@ import sys
 from tkinter import BooleanVar, IntVar, Listbox, StringVar, Tk, ttk
 
 from pydiode.gui.receive import (
-    receive_files,
+    receive_or_cancel,
     set_target_directory,
     RECEIVE_PROCESSES,
 )
@@ -132,7 +132,7 @@ def gui_main():
     rx_btn = ttk.Button(
         rx_inner,
         text="Start Receiving",
-        command=lambda: receive_files(
+        command=lambda: receive_or_cancel(
             root,
             target.get(),
             receive_ip.get(),
@@ -140,6 +140,7 @@ def gui_main():
             rx_btn,
             rx_progress,
             rx_cancelled,
+            receive_repeatedly,
         ),
     )
     rx_btn.grid(column=0, row=2, pady=5)
@@ -168,6 +169,15 @@ def gui_main():
     port = StringVar()
     ttk.Entry(settings_inner, textvariable=port).grid(column=1, row=2)
     port.set(config["pydiode"].get("port", "1234"))
+    receive_repeatedly = BooleanVar()
+    ttk.Checkbutton(
+        settings_inner,
+        text="Receive continuously",
+        variable=receive_repeatedly,
+        onvalue=True,
+        offvalue=False,
+    ).grid(column=0, row=3, columnspan=2, sticky="W")
+    receive_repeatedly.set(config["pydiode"].get("receive_repeatedly", True))
     # TODO Add options for maximum bitrate and redundancy
 
     # Override the default behavior of the Quit menu, so it doesn't cause the
@@ -188,6 +198,7 @@ def gui_main():
         "send_ip": send_ip.get(),
         "receive_ip": receive_ip.get(),
         "port": port.get(),
+        "receive_repeatedly": receive_repeatedly.get(),
     }
     with open(CONFIG, "w") as configfile:
         config.write(configfile)

@@ -77,7 +77,7 @@ def stuck_running(returncodes):
         return False
 
 
-def check_subprocesses(widget, cancelled, processes):
+def check_subprocesses(widget, cancelled, processes, on_exit=None):
     """
     Check whether all the subprocesses have exited. If so, display their error
     messages and clean up after them.
@@ -86,6 +86,9 @@ def check_subprocesses(widget, cancelled, processes):
     :param cancelled: Boolean variable indicating cancellation request
     :param processes: An array of tuples, each containing a subprocess's name
                       and its popen object.
+    :param on_exit: Function to call after all subprocesses have exited. Do
+                    not call the function if the subprocesses exited due to
+                    cancellation or getting stuck.
     """
     # If requested, cancel subprocesses
     if cancelled.get():
@@ -121,7 +124,10 @@ def check_subprocesses(widget, cancelled, processes):
         # If subprocesses are still running, keep waiting for them
         elif still_running:
             widget.after(
-                SLEEP, lambda: check_subprocesses(widget, cancelled, processes)
+                SLEEP,
+                lambda: check_subprocesses(
+                    widget, cancelled, processes, on_exit=on_exit
+                ),
             )
         # Otherwise, all subprocesses have exited
         else:
@@ -136,3 +142,6 @@ def check_subprocesses(widget, cancelled, processes):
             # The array of subprocesses should be cleared, so it doesn't grow
             # each time more subprocesses are started
             processes.clear()
+            # Call the on_exit() function, if it was provided
+            if on_exit:
+                on_exit()

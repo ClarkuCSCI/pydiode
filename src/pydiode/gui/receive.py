@@ -20,8 +20,15 @@ def set_target_directory(target):
         target.set(target_directory)
 
 
-def receive_files(
-    root, target_dir, receive_ip, port, button, progress_bar, cancelled
+def receive_or_cancel(
+    root,
+    target_dir,
+    receive_ip,
+    port,
+    button,
+    progress_bar,
+    cancelled,
+    receive_repeatedly,
 ):
     """
     Receive files from the data diode. If we are already receiving, calling
@@ -33,41 +40,82 @@ def receive_files(
     :param button: Start/Cancel button widget
     :param progress_bar: Progress bar widget
     :param cancelled: Boolean variable indicating cancellation request
+    :param receive_repeatedly: Boolean variable indicating whether to receive
+                               again after the subprocesses exit.
     """
+
     if button["text"] == "Cancel Receiving":
         cancelled.set(True)
     else:
-        pydiode = subprocess.Popen(
-            sys.argv + ["pydiode", "receive", receive_ip, "--port", port],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        tar = subprocess.Popen(
-            sys.argv + ["tar", "extract", target_dir],
-            stdin=pydiode.stdout,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        RECEIVE_PROCESSES.extend([("pydiode", pydiode), ("tar", tar)])
-        root.after(
-            SLEEP,
-            lambda: check_subprocesses(root, cancelled, RECEIVE_PROCESSES),
+        receive_files(
+            root,
+            target_dir,
+            receive_ip,
+            port,
+            button,
+            progress_bar,
+            cancelled,
+            receive_repeatedly,
         )
 
-        def animate():
-            # An "indeterminate" progress bar will animate until its value is 0
-            progress_bar["value"] += 5
-            # If either subprocess hasn't exited, keep animating
-            if (tar.poll() is None) or (pydiode.poll() is None):
-                root.after(SLEEP, animate)
-            # When tar exits, prepare to receive again
-            else:
-                # Allow receiving more files
-                button["text"] = "Start Receiving"
-                # Empty the progress bar by switching modes
-                progress_bar["value"] = 0
-                progress_bar["mode"] = "determinate"
 
-        button["text"] = "Cancel Receiving"
-        progress_bar["mode"] = "indeterminate"
-        root.after(SLEEP, animate)
+def receive_files(
+    root,
+    target_dir,
+    receive_ip,
+    port,
+    button,
+    progress_bar,
+    cancelled,
+    receive_repeatedly,
+):
+    def repeat():
+        if receive_repeatedly.get():
+            # Receive another batch of files
+            receive_files(
+                root,
+                target_dir,
+                receive_ip,
+                port,
+                button,
+                progress_bar,
+                cancelled,
+                receive_repeatedly,
+            )
+
+    def animate():
+        # An "indeterminate" progress bar will animate until its value is 0
+        progress_bar["value"] += 5
+        # If either subprocess hasn't exited, keep animating
+        if (tar.poll() is None) or (pydiode.poll() is None):
+            button["text"] = "Cancel Receiving"
+            progress_bar["mode"] = "indeterminate"
+            root.after(SLEEP, animate)
+        # When tar exits, prepare to receive again
+        else:
+            # Allow receiving more files
+            button["text"] = "Start Receiving"
+            # Empty the progress bar by switching modes
+            progress_bar["value"] = 0
+            progress_bar["mode"] = "determinate"
+
+    pydiode = subprocess.Popen(
+        sys.argv + ["pydiode", "receive", receive_ip, "--port", port],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    tar = subprocess.Popen(
+        sys.argv + ["tar", "extract", target_dir],
+        stdin=pydiode.stdout,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    RECEIVE_PROCESSES.extend([("pydiode", pydiode), ("tar", tar)])
+
+    root.after(
+        SLEEP,
+        lambda: check_subprocesses(
+            root, cancelled, RECEIVE_PROCESSES, on_exit=repeat
+        ),
+    )
+    root.after(SLEEP, animate)
