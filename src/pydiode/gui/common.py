@@ -3,6 +3,9 @@ from tkinter.messagebox import showerror
 # Check subprocesses every SLEEP milliseconds
 SLEEP = 250
 
+# Test message for testing sending and receiving
+TEST_MESSAGE = b"Testing 123"
+
 
 def get_process_errors(name_popen):
     """
