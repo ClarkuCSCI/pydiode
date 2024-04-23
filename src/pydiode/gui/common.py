@@ -3,9 +3,6 @@ from tkinter.messagebox import showerror
 # Check subprocesses every SLEEP milliseconds
 SLEEP = 250
 
-# Test message for testing sending and receiving
-TEST_MESSAGE = b"Testing 123"
-
 
 def get_process_errors(name_popen):
     """
@@ -90,8 +87,9 @@ def check_subprocesses(widget, cancelled, processes, on_exit=None):
     :param processes: An array of tuples, each containing a subprocess's name
                       and its popen object.
     :param on_exit: Function to call after all subprocesses have exited. Do
-                    not call the function if the subprocesses exited due to
-                    cancellation or getting stuck.
+                    not call the function if the subprocesses exited with a
+                    non-zero exit code, due to cancellation, or due to getting
+                    stuck.
     """
     # If requested, cancel subprocesses
     if cancelled.get():
@@ -140,11 +138,13 @@ def check_subprocesses(widget, cancelled, processes, on_exit=None):
                 showerror(title="Error", message=error_msgs)
             # Clean up
             for name, popen in processes:
-                popen.stdout.close()
-                popen.stderr.close()
+                if popen.stdout:
+                    popen.stdout.close()
+                if popen.stderr:
+                    popen.stderr.close()
             # The array of subprocesses should be cleared, so it doesn't grow
             # each time more subprocesses are started
             processes.clear()
             # Call the on_exit() function, if it was provided
-            if on_exit:
+            if on_exit and not error_msgs:
                 on_exit()

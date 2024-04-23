@@ -4,8 +4,9 @@ from tkinter.filedialog import askdirectory
 
 from pydiode.gui.common import check_subprocesses, SLEEP
 
-# An array of tuples, each containing a subprocess's name and its popen object
+# Arrays of tuples, each containing a subprocess's name and its popen object
 RECEIVE_PROCESSES = []
+RECEIVE_TEST_PROCESSES = []
 
 
 def set_target_directory(target):
@@ -119,3 +120,42 @@ def receive_files(
         ),
     )
     root.after(SLEEP, animate)
+
+
+def receive_test(
+    root,
+    receive_ip,
+    port,
+    button,
+    cancelled,
+):
+    """
+    Start receiving the test message, or cancel receiving the test message.
+    """
+
+    def update_button():
+        # If pydiode hasn't exited
+        if pydiode.poll() is None:
+            button["text"] = "Cancel Receiving Test"
+            root.after(SLEEP, update_button)
+        else:
+            button["text"] = "Test Receiving"
+
+    if button["text"] == "Cancel Receiving Test":
+        cancelled.set(True)
+    else:
+        # pydiode will exit with a non-zero exit code if the received data's
+        # digest doesn't match the EOF packet's digest. Thus, we can ignore
+        # stdout.
+        pydiode = subprocess.Popen(
+            sys.argv + ["pydiode", "receive", receive_ip, "--port", port],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+        )
+        RECEIVE_TEST_PROCESSES.extend([("pydiode", pydiode)])
+
+        root.after(
+            SLEEP,
+            lambda: check_subprocesses(root, cancelled, RECEIVE_TEST_PROCESSES),
+        )
+        root.after(SLEEP, update_button)

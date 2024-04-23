@@ -4,7 +4,7 @@ import subprocess
 import sys
 from tkinter.filedialog import askopenfilenames
 
-from pydiode.gui.common import check_subprocesses, SLEEP, TEST_MESSAGE
+from pydiode.gui.common import check_subprocesses, SLEEP
 
 # Number of bits in a byte
 BYTE = 8
@@ -16,6 +16,8 @@ REDUNDANCY = 2
 OVERHEAD = 1.085
 # Increment progress bars every 25 milliseconds, for smooth animation.
 INCREMENT_INTERVAL = 25
+# Test message
+TEST_MESSAGE = b"Testing 123"
 # Arrays of tuples, each containing a subprocess's name and its popen object
 SEND_PROCESSES = []
 SEND_TEST_PROCESSES = []
@@ -174,7 +176,7 @@ def send_test(
 ):
     """
     Send a test message. Since the test message is short, there is no way to
-    cancel it. For simplicity, we reuse the send tab's cancelled variable.
+    cancel it.
     """
     pydiode = subprocess.Popen(
         sys.argv
