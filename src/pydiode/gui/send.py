@@ -17,7 +17,7 @@ OVERHEAD = 1.085
 # Increment progress bars every 25 milliseconds, for smooth animation.
 INCREMENT_INTERVAL = 25
 # Test message
-TEST_MESSAGE = b"Testing 123"
+TEST_MESSAGE = b"Testing pydiode"
 # Arrays of tuples, each containing a subprocess's name and its popen object
 SEND_PROCESSES = []
 SEND_TEST_PROCESSES = []
