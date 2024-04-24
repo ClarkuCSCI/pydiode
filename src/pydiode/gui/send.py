@@ -138,10 +138,7 @@ def send_or_cancel(
             stderr=subprocess.PIPE,
         )
         SEND_PROCESSES.extend([("tar", tar), ("pydiode", pydiode)])
-        root.after(
-            SLEEP,
-            lambda: check_subprocesses(root, cancelled, SEND_PROCESSES),
-        )
+        check_subprocesses(root, cancelled, SEND_PROCESSES)
 
         increment_size = get_increment_size(sources_list, progress_bar)
 
@@ -164,7 +161,7 @@ def send_or_cancel(
 
         button["text"] = "Cancel Sending"
         progress_bar["value"] = 0
-        root.after(INCREMENT_INTERVAL, animate)
+        animate()
 
 
 def send_test(
@@ -199,7 +196,4 @@ def send_test(
     pydiode.stdin.write(TEST_MESSAGE)
     pydiode.stdin.close()
     SEND_TEST_PROCESSES.extend([("pydiode", pydiode)])
-    root.after(
-        SLEEP,
-        lambda: check_subprocesses(root, cancelled, SEND_TEST_PROCESSES),
-    )
+    check_subprocesses(root, cancelled, SEND_TEST_PROCESSES)

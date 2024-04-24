@@ -113,13 +113,8 @@ def receive_files(
     )
     RECEIVE_PROCESSES.extend([("pydiode", pydiode), ("tar", tar)])
 
-    root.after(
-        SLEEP,
-        lambda: check_subprocesses(
-            root, cancelled, RECEIVE_PROCESSES, on_exit=repeat
-        ),
-    )
-    root.after(SLEEP, animate)
+    check_subprocesses(root, cancelled, RECEIVE_PROCESSES, on_exit=repeat)
+    animate()
 
 
 def receive_test(
@@ -154,8 +149,5 @@ def receive_test(
         )
         RECEIVE_TEST_PROCESSES.extend([("pydiode", pydiode)])
 
-        root.after(
-            SLEEP,
-            lambda: check_subprocesses(root, cancelled, RECEIVE_TEST_PROCESSES),
-        )
-        root.after(SLEEP, update_button)
+        check_subprocesses(root, cancelled, RECEIVE_TEST_PROCESSES)
+        update_button()
