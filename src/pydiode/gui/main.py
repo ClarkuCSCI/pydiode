@@ -5,15 +5,19 @@ from tkinter import BooleanVar, IntVar, Listbox, StringVar, Tk, ttk
 
 from pydiode.gui.receive import (
     receive_or_cancel,
+    receive_test,
     set_target_directory,
     RECEIVE_PROCESSES,
+    RECEIVE_TEST_PROCESSES,
 )
 from pydiode.gui.send import (
     add_source_files,
     remove_source_files,
     send_or_cancel,
+    send_test,
     update_tx_btn,
     SEND_PROCESSES,
+    SEND_TEST_PROCESSES,
 )
 import pydiode.pydiode
 import pydiode.tar
@@ -178,6 +182,31 @@ def gui_main():
         offvalue=False,
     ).grid(column=0, row=3, columnspan=2, sticky="W")
     receive_repeatedly.set(config["pydiode"].get("receive_repeatedly", True))
+    rx_test_cancelled = BooleanVar(value=False)
+    rx_test_btn = ttk.Button(
+        settings_inner,
+        text="Test Receiving",
+        command=lambda: receive_test(
+            root,
+            receive_ip.get(),
+            port.get(),
+            rx_test_btn,
+            rx_test_cancelled,
+        ),
+    )
+    rx_test_btn.grid(column=0, row=4, columnspan=2)
+    tx_test_cancelled = BooleanVar(value=False)
+    ttk.Button(
+        settings_inner,
+        text="Test Sending",
+        command=lambda: send_test(
+            root,
+            send_ip.get(),
+            receive_ip.get(),
+            port.get(),
+            tx_test_cancelled,
+        ),
+    ).grid(column=0, row=5, columnspan=2)
     # TODO Add options for maximum bitrate and redundancy
 
     # Override the default behavior of the Quit menu, so it doesn't cause the
@@ -188,7 +217,12 @@ def gui_main():
     root.mainloop()
 
     # Cancel send and receive subprocesses
-    for name, popen in SEND_PROCESSES + RECEIVE_PROCESSES:
+    for name, popen in (
+        SEND_PROCESSES
+        + SEND_TEST_PROCESSES
+        + RECEIVE_PROCESSES
+        + RECEIVE_TEST_PROCESSES
+    ):
         popen.terminate()
 
     # Save settings

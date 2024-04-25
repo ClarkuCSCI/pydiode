@@ -16,8 +16,11 @@ REDUNDANCY = 2
 OVERHEAD = 1.085
 # Increment progress bars every 25 milliseconds, for smooth animation.
 INCREMENT_INTERVAL = 25
-# An array of tuples, each containing a subprocess's name and its popen object
+# Test message
+TEST_MESSAGE = b"Testing pydiode"
+# Arrays of tuples, each containing a subprocess's name and its popen object
 SEND_PROCESSES = []
+SEND_TEST_PROCESSES = []
 
 
 def add_source_files(sources_var, sources_list):
@@ -135,10 +138,7 @@ def send_or_cancel(
             stderr=subprocess.PIPE,
         )
         SEND_PROCESSES.extend([("tar", tar), ("pydiode", pydiode)])
-        root.after(
-            SLEEP,
-            lambda: check_subprocesses(root, cancelled, SEND_PROCESSES),
-        )
+        check_subprocesses(root, cancelled, SEND_PROCESSES)
 
         increment_size = get_increment_size(sources_list, progress_bar)
 
@@ -161,4 +161,39 @@ def send_or_cancel(
 
         button["text"] = "Cancel Sending"
         progress_bar["value"] = 0
-        root.after(INCREMENT_INTERVAL, animate)
+        animate()
+
+
+def send_test(
+    root,
+    send_ip,
+    receive_ip,
+    port,
+    cancelled,
+):
+    """
+    Send a test message. Since the test message is short, there is no way to
+    cancel it.
+    """
+    pydiode = subprocess.Popen(
+        sys.argv
+        + [
+            "pydiode",
+            "send",
+            receive_ip,
+            send_ip,
+            "--port",
+            port,
+            "--max-bitrate",
+            str(MAX_BITRATE),
+            "--redundancy",
+            str(REDUNDANCY),
+        ],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    pydiode.stdin.write(TEST_MESSAGE)
+    pydiode.stdin.close()
+    SEND_TEST_PROCESSES.extend([("pydiode", pydiode)])
+    check_subprocesses(root, cancelled, SEND_TEST_PROCESSES)
