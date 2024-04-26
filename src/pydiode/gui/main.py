@@ -207,7 +207,6 @@ def gui_main():
             tx_test_cancelled,
         ),
     ).grid(column=0, row=5, columnspan=2)
-    # TODO Add options for maximum bitrate and redundancy
 
     # Override the default behavior of the Quit menu, so it doesn't cause the
     # application to exit immediately
