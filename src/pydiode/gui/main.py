@@ -147,9 +147,9 @@ def gui_main():
             receive_repeatedly,
         ),
     )
-    rx_btn.grid(column=0, row=2, pady=5)
+    rx_btn.grid(column=0, row=2, pady=5, columnspan=2)
     rx_progress = ttk.Progressbar(rx_inner, length=200)
-    rx_progress.grid(column=0, row=3)
+    rx_progress.grid(column=0, row=3, columnspan=2)
     rx_cancelled = BooleanVar(value=False)
 
     # Configure the settings tab
