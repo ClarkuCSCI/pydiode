@@ -1,6 +1,8 @@
+from pathlib import Path
 import subprocess
 import sys
 from tkinter.filedialog import askdirectory
+from tkinter.messagebox import showinfo
 
 from pydiode.gui.common import check_subprocesses, SLEEP
 
@@ -71,6 +73,10 @@ def receive_files(
     receive_repeatedly,
 ):
     def repeat():
+        showinfo(
+            title="Finished Receiving",
+            message=f"Saved files to {Path(target_dir).name}",
+        )
         if receive_repeatedly.get():
             # Receive another batch of files
             receive_files(
