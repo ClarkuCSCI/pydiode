@@ -127,12 +127,13 @@ class SavedWindow:
             cls.top.bind("<Return>", cls.on_ok)
 
             # Use modal style on macOS
-            cls.top.tk.call(
-                "::tk::unsupported::MacWindowStyle",
-                "style",
-                cls.top._w,
-                "modal",
-            )
+            if sys.platform == "darwin":
+                cls.top.tk.call(
+                    "::tk::unsupported::MacWindowStyle",
+                    "style",
+                    cls.top._w,
+                    "modal",
+                )
 
             # Center the modal over the main window
             width = 400
