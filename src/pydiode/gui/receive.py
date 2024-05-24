@@ -1,6 +1,8 @@
+import os
 from pathlib import Path
 import subprocess
 import sys
+from tkinter import Toplevel, ttk
 from tkinter.filedialog import askdirectory
 from tkinter.messagebox import showinfo
 
@@ -62,6 +64,94 @@ def receive_or_cancel(
         )
 
 
+class SavedWindow:
+    # A modal window shown after files were received
+    top = None
+
+    # Whether to show the window. Configured as a BooleanVar in gui_main().
+    should_show = None
+
+    @classmethod
+    def on_ok(cls, event=None):
+        cls.top.destroy()
+
+    @classmethod
+    def on_show_files(cls, target_dir):
+        # Based on: https://stackoverflow.com/a/17317468/3043071
+        if sys.platform == "win32":
+            os.startfile(target_dir)
+        else:
+            opener = "open" if sys.platform == "darwin" else "xdg-open"
+            subprocess.run([opener, target_dir])
+        cls.top.destroy()
+
+    @classmethod
+    def show_window(cls, root, target_dir):
+        # Only create a window if:
+        # - The user didn't permanently dismiss the window and
+        # - The window hasn't yet been created, or it was destroyed
+        if cls.should_show.get() and (
+            not cls.top or not cls.top.winfo_exists()
+        ):
+            cls.top = Toplevel(root)
+            cls.top.grid_rowconfigure(0, weight=1)
+            cls.top.grid_columnconfigure(0, weight=1)
+            cls.top.title("Received Files")
+
+            ttk.Label(
+                cls.top, text=f"Saved files to: {Path(target_dir).name}"
+            ).grid(column=0, row=0, columnspan=3)
+
+            ttk.Checkbutton(
+                cls.top,
+                text="Do not show again",
+                variable=cls.should_show,
+                onvalue=False,
+                offvalue=True,
+            ).grid(column=0, row=1, padx=5, pady=10)
+
+            show_files_button = ttk.Button(
+                cls.top,
+                text="Show Files",
+                command=lambda: cls.on_show_files(target_dir),
+            )
+            show_files_button.grid(column=1, row=1, pady=10)
+
+            ok_button = ttk.Button(
+                cls.top, text="OK", default="active", command=cls.on_ok
+            )
+            ok_button.grid(column=2, row=1, padx=10, pady=10)
+
+            # Dismiss if escape or return are pressed
+            cls.top.bind("<Escape>", cls.on_ok)
+            cls.top.bind("<Return>", cls.on_ok)
+
+            # Use modal style on macOS
+            if sys.platform == "darwin":
+                cls.top.tk.call(
+                    "::tk::unsupported::MacWindowStyle",
+                    "style",
+                    cls.top._w,
+                    "modal",
+                )
+
+            # Center the modal over the main window
+            width = 400
+            height = 100
+            x = root.winfo_x() + (root.winfo_width() // 2) - (width // 2)
+            y = root.winfo_y() + (root.winfo_height() // 2) - (height // 4)
+            cls.top.geometry(f"{width}x{height}+{x}+{y}")
+
+            # Prevent resizing
+            cls.top.resizable(False, False)
+
+            # Stay on top of the main window
+            cls.top.transient(root)
+
+            # Take focus
+            cls.top.grab_set()
+
+
 def receive_files(
     root,
     target_dir,
@@ -73,10 +163,7 @@ def receive_files(
     receive_repeatedly,
 ):
     def repeat():
-        showinfo(
-            title="Finished Receiving",
-            message=f"Saved files to {Path(target_dir).name}",
-        )
+        SavedWindow.show_window(root, target_dir)
         if receive_repeatedly.get():
             # Receive another batch of files
             receive_files(

@@ -9,6 +9,7 @@ from pydiode.gui.receive import (
     set_target_directory,
     RECEIVE_PROCESSES,
     RECEIVE_TEST_PROCESSES,
+    SavedWindow,
 )
 from pydiode.gui.send import (
     add_source_files,
@@ -152,6 +153,12 @@ def gui_main():
     rx_progress.grid(column=0, row=3, columnspan=2)
     rx_cancelled = BooleanVar(value=False)
 
+    # Configure receive's SavedWindow
+    SavedWindow.should_show = BooleanVar()
+    SavedWindow.should_show.set(
+        config["pydiode"].get("saved_window_should_show", True)
+    )
+
     # Configure the settings tab
     settings_inner = ttk.Frame(settings_outer)
     settings_inner.grid(column=0, row=0, sticky="N")
@@ -232,6 +239,7 @@ def gui_main():
         "receive_ip": receive_ip.get(),
         "port": port.get(),
         "receive_repeatedly": receive_repeatedly.get(),
+        "saved_window_should_show": SavedWindow.should_show.get(),
     }
     with open(CONFIG, "w") as configfile:
         config.write(configfile)
