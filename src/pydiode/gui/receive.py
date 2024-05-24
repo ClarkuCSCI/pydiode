@@ -100,7 +100,7 @@ class SavedWindow:
 
             ttk.Label(
                 cls.top, text=f"Saved files to: {Path(target_dir).name}"
-            ).grid(column=0, row=0, columnspan=3)
+            ).grid(column=0, row=0, columnspan=3, pady=(15, 0))
 
             ttk.Checkbutton(
                 cls.top,
@@ -108,7 +108,7 @@ class SavedWindow:
                 variable=cls.should_show,
                 onvalue=False,
                 offvalue=True,
-            ).grid(column=0, row=1, padx=5, pady=10)
+            ).grid(column=0, row=1, padx=10, pady=10)
 
             show_files_button = ttk.Button(
                 cls.top,
@@ -135,12 +135,15 @@ class SavedWindow:
                     "modal",
                 )
 
-            # Center the modal over the main window
+            # Set the modal's minimum size, and center it over the main window.
+            # If the size exceeds these dimensions, the modal won't be
+            # perfectly centered.
             width = 400
             height = 100
+            cls.top.minsize(width=width, height=height)
             x = root.winfo_x() + (root.winfo_width() // 2) - (width // 2)
             y = root.winfo_y() + (root.winfo_height() // 2) - (height // 4)
-            cls.top.geometry(f"{width}x{height}+{x}+{y}")
+            cls.top.geometry(f"+{x}+{y}")
 
             # Prevent resizing
             cls.top.resizable(False, False)
