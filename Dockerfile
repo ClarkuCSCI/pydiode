@@ -12,6 +12,9 @@ RUN pip install pyinstaller
 # Install fpm, for generating .deb packages
 RUN apt update && apt install -y ruby && gem install fpm
 
+# Increase the default height of the file dialogue
+RUN sed -i 's/-height 120/-height 500/' /usr/share/tcltk/tk8.6/iconlist.tcl
+
 # Install pydiode
 WORKDIR /root/pydiode
 RUN pip install .
