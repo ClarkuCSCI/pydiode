@@ -37,7 +37,14 @@ def gui_main():
     # Create the main window
     root = Tk(className="diodeTransfer")
     root.title("Diode Transfer")
-    root.minsize(width=500, height=400)
+    # We can't tell whether screen scaling is enabled on Linux. When 200%
+    # scaling is used, the window is too small. As a workaround, increase the
+    # window size on 4K screens. This won't affect macOS, since macOS presents
+    # 4K screens as having fewer pixels.
+    # https://stackoverflow.com/q/78529732/3043071
+    root.minsize(
+        width=(500 if root.winfo_screenwidth() < 3000 else 700), height=400
+    )
 
     # Create three tabs
     nb = ttk.Notebook(root)
