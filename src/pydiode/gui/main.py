@@ -4,6 +4,7 @@ import signal
 import sys
 from tkinter import BooleanVar, IntVar, Listbox, StringVar, Tk, ttk
 
+from pydiode.gui.common import USER_STUDY
 from pydiode.gui.receive import (
     receive_or_cancel,
     receive_test,
@@ -260,8 +261,10 @@ def gui_main():
         "decrypt_received": decrypt_received.get(),
         "saved_window_should_show": SavedWindow.should_show.get(),
     }
-    with open(CONFIG, "w") as configfile:
-        config.write(configfile)
+    # Disabled for the user study, to simulate using the GUI after a reboot
+    if not USER_STUDY:
+        with open(CONFIG, "w") as configfile:
+            config.write(configfile)
 
 
 def main():
