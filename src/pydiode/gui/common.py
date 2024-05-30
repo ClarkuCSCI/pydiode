@@ -5,6 +5,9 @@ from tkinter.messagebox import showerror
 # Check subprocesses every SLEEP milliseconds
 SLEEP = 250
 
+# Certain features will be disabled for the user study
+USER_STUDY = True
+
 
 def get_process_errors(name_popen):
     """
