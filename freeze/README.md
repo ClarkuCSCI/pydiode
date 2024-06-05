@@ -20,9 +20,15 @@ This will create `src/pydiode/dist/Diode Transfer.app`.
 
 To generate a .deb for Linux, from the top-level of the repo run:
 ```
+docker compose up -d --build
 docker compose exec python freeze/linux.sh
 ```
 This will create `src/pydiode/dist/diode-transfer.deb`.
+
+You should also copy it into the `diode-instrument` repo:
+```
+cp src/pydiode/dist/diode-transfer.deb ../diode-instrument/setup/
+```
 
 ## Windows
 
