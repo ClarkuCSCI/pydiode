@@ -48,9 +48,9 @@ def gui_main():
 
     # Create three tabs
     nb = ttk.Notebook(root)
-    tx_outer = ttk.Frame(nb, padding=5)
-    rx_outer = ttk.Frame(nb, padding=5)
-    settings_outer = ttk.Frame(nb, padding=5)
+    tx_outer = ttk.Frame(nb, padding=10)
+    rx_outer = ttk.Frame(nb, padding=10)
+    settings_outer = ttk.Frame(nb, padding=10)
     nb.add(tx_outer, text="Send")
     nb.add(rx_outer, text="Receive")
     nb.add(settings_outer, text="Settings")
