@@ -44,6 +44,12 @@ def main():
                 # This can happen when pydiode's STDOUT is connected to tar's
                 # STDIN, and pydiode exits without output.
                 sys.exit(0)
+            elif str(e) == "truncated header":
+                print(
+                    "Invalid header. Did you send a test packet?",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
             else:
                 raise e
         # If you attempt to write to a directory without write access
