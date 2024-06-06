@@ -22,9 +22,7 @@ def get_process_errors(name_popen):
             trimmed_stderr = popen.stderr.read().decode("utf-8").strip()
             error_msg = f'"{name}" exited with code {popen.returncode}'
             if trimmed_stderr:
-                error_msg += f' and stderr "{trimmed_stderr}".'
-            else:
-                error_msg += "."
+                error_msg += f' and stderr "{trimmed_stderr}"'
             error_msgs.append(error_msg)
     if error_msgs:
         error_msgs.insert(0, "Error:")
