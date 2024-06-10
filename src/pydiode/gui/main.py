@@ -5,6 +5,7 @@ import sys
 from tkinter import BooleanVar, IntVar, Listbox, StringVar, Tk, ttk
 
 from pydiode.gui.common import USER_STUDY
+from pydiode.gui.linux import activate
 from pydiode.gui.receive import (
     receive_or_cancel,
     receive_test,
@@ -33,6 +34,11 @@ CONFIG = Path("~/.pydiode.ini").expanduser()
 
 
 def gui_main():
+    # Ensure that only one instance of the application runs on Linux
+    if sys.platform == "linux" and activate():
+        print("Diode Transfer was already running. Activated its window.")
+        sys.exit(0)
+
     # Load configuration
     config = configparser.ConfigParser()
     config.read(CONFIG)
