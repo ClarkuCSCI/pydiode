@@ -76,7 +76,9 @@ def stuck_running(returncodes):
         return False
 
 
-def check_subprocesses(widget, cancelled, processes, on_exit=None):
+def check_subprocesses(
+    widget, cancelled, processes, on_exit=None, cancel_signal=signal.SIGINT
+):
     """
     Check whether all the subprocesses have exited. If so, display their error
     messages and clean up after them.
@@ -89,18 +91,25 @@ def check_subprocesses(widget, cancelled, processes, on_exit=None):
                     not call the function if the subprocesses exited with a
                     non-zero exit code, due to cancellation, or due to getting
                     stuck.
+    :param cancel_signal: If cancellation was requested, send this signal to
+                          all subprocesses. SIGINT is used for user-initiated
+                          termination. SIGTERM is used for stuck subprocesses.
     """
     # If requested, cancel subprocesses
     if cancelled.get():
-        # Signal each process to exit. Use SIGINT to differentiate between
-        # when subprocesses are stuck, where SIGTERM is used.
+        # Signal each process to exit
         for name, popen in processes:
-            popen.send_signal(signal.SIGINT)
+            popen.send_signal(cancel_signal)
         # Mark this cancellation request as handled
         cancelled.set(False)
+        # Don't call on_exit if the user requested cancellation
+        on_exit = None if cancel_signal == signal.SIGINT else on_exit
         # At the next check, hopefully the processes will have exited
         widget.after(
-            SLEEP, lambda: check_subprocesses(widget, cancelled, processes)
+            SLEEP,
+            lambda: check_subprocesses(
+                widget, cancelled, processes, on_exit=on_exit
+            ),
         )
     else:
         # Get returncodes for exited processes, None for running processes
@@ -110,14 +119,17 @@ def check_subprocesses(widget, cancelled, processes, on_exit=None):
 
         # If subprocesses are stuck
         if stuck_running(returncodes):
-            # Signal each process to exit
-            for name, popen in processes:
-                popen.terminate()
+            # Request cancellation
+            cancelled.set(True)
             # At the next check, hopefully the processes will have exited
             widget.after(
                 SLEEP,
                 lambda: check_subprocesses(
-                    widget, cancelled, processes, on_exit=on_exit
+                    widget,
+                    cancelled,
+                    processes,
+                    on_exit=on_exit,
+                    cancel_signal=signal.SIGTERM,
                 ),
             )
             # Describe the issue
