@@ -1,3 +1,4 @@
+import signal
 import sys
 from tkinter.messagebox import showerror
 
@@ -17,9 +18,13 @@ def get_process_errors(name_popen):
     """
     error_msgs = []
     for name, popen in name_popen:
+        # Ignore:
+        # -2: SIGINT, possibly from user-initiated cancellation.
         # 0: normal exit.
-        # -15: SIGTERM, likely from user-initiated cancellation.
-        if popen.returncode not in {-15, 0}:
+        #
+        # Show all other exit codes, including:
+        # -15: SIGTERM, possibly from stuck subprocesses.
+        if popen.returncode not in {-2, 0}:
             trimmed_stderr = popen.stderr.read().decode("utf-8").strip()
             error_msg = f'"{name}" exited with code {popen.returncode}'
             if trimmed_stderr:
@@ -87,9 +92,10 @@ def check_subprocesses(widget, cancelled, processes, on_exit=None):
     """
     # If requested, cancel subprocesses
     if cancelled.get():
-        # Signal each process to exit
+        # Signal each process to exit. Use SIGINT to differentiate between
+        # when subprocesses are stuck, where SIGTERM is used.
         for name, popen in processes:
-            popen.terminate()
+            popen.send_signal(signal.SIGINT)
         # Mark this cancellation request as handled
         cancelled.set(False)
         # At the next check, hopefully the processes will have exited
