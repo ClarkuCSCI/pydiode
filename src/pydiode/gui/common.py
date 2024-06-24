@@ -121,7 +121,6 @@ def check_subprocesses(
         if stuck_running(returncodes):
             # Request cancellation
             cancelled.set(True)
-            # At the next check, hopefully the processes will have exited
             widget.after(
                 SLEEP,
                 lambda: check_subprocesses(
