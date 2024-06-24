@@ -1,3 +1,5 @@
+import signal
+import sys
 from tkinter.messagebox import showerror
 
 # Check subprocesses every SLEEP milliseconds
@@ -16,9 +18,13 @@ def get_process_errors(name_popen):
     """
     error_msgs = []
     for name, popen in name_popen:
+        # Ignore:
+        # -2: SIGINT, possibly from user-initiated cancellation.
         # 0: normal exit.
-        # -15: SIGTERM, likely from user-initiated cancellation.
-        if popen.returncode not in {-15, 0}:
+        #
+        # Show all other exit codes, including:
+        # -15: SIGTERM, possibly from stuck subprocesses.
+        if popen.returncode not in {-2, 0}:
             trimmed_stderr = popen.stderr.read().decode("utf-8").strip()
             error_msg = f'"{name}" exited with code {popen.returncode}'
             if trimmed_stderr:
@@ -29,27 +35,22 @@ def get_process_errors(name_popen):
     return "\n".join(error_msgs)
 
 
-def get_premature_errors(name_code):
+def print_premature_errors(name_code):
     """
-    Get an error message describing subprocesses that exited prematurely.
+    Print a description of subprocesses that exited prematurely.
 
     :param name_code: A list of tuples. Each tuple contains the process name
                       and the return code of the process. Some processes have
                       terminated, others have not.
-    :returns: A string describing the subprocesses that exited prematurely.
     """
-    error_msgs = []
     returncodes = [code for name, code in name_code]
     try:
         earliest_running = returncodes.index(None)
         for name, code in name_code[(earliest_running + 1) :]:
             if code is not None:
-                error_msgs.append(f'"{name}" exited prematurely.')
-        if error_msgs:
-            error_msgs.insert(0, "Error:")
+                print(f'"{name}" exited prematurely.', file=sys.stderr)
     except ValueError:
         pass
-    return "\n".join(error_msgs)
 
 
 def stuck_running(returncodes):
@@ -75,7 +76,9 @@ def stuck_running(returncodes):
         return False
 
 
-def check_subprocesses(widget, cancelled, processes, on_exit=None):
+def check_subprocesses(
+    widget, cancelled, processes, on_exit=None, cancel_signal=signal.SIGINT
+):
     """
     Check whether all the subprocesses have exited. If so, display their error
     messages and clean up after them.
@@ -88,17 +91,25 @@ def check_subprocesses(widget, cancelled, processes, on_exit=None):
                     not call the function if the subprocesses exited with a
                     non-zero exit code, due to cancellation, or due to getting
                     stuck.
+    :param cancel_signal: If cancellation was requested, send this signal to
+                          all subprocesses. SIGINT is used for user-initiated
+                          termination. SIGTERM is used for stuck subprocesses.
     """
     # If requested, cancel subprocesses
     if cancelled.get():
         # Signal each process to exit
         for name, popen in processes:
-            popen.terminate()
+            popen.send_signal(cancel_signal)
         # Mark this cancellation request as handled
         cancelled.set(False)
+        # Don't call on_exit if the user requested cancellation
+        on_exit = None if cancel_signal == signal.SIGINT else on_exit
         # At the next check, hopefully the processes will have exited
         widget.after(
-            SLEEP, lambda: check_subprocesses(widget, cancelled, processes)
+            SLEEP,
+            lambda: check_subprocesses(
+                widget, cancelled, processes, on_exit=on_exit
+            ),
         )
     else:
         # Get returncodes for exited processes, None for running processes
@@ -108,18 +119,21 @@ def check_subprocesses(widget, cancelled, processes, on_exit=None):
 
         # If subprocesses are stuck
         if stuck_running(returncodes):
-            # Request termination of the processes
+            # Request cancellation
             cancelled.set(True)
             widget.after(
-                SLEEP, lambda: check_subprocesses(widget, cancelled, processes)
+                SLEEP,
+                lambda: check_subprocesses(
+                    widget,
+                    cancelled,
+                    processes,
+                    on_exit=on_exit,
+                    cancel_signal=signal.SIGTERM,
+                ),
             )
             # Describe the issue
             process_names = [name for name, popen in processes]
-            error_msgs = get_premature_errors(
-                list(zip(process_names, returncodes))
-            )
-            if error_msgs:
-                showerror(title="Error", message=error_msgs)
+            print_premature_errors(list(zip(process_names, returncodes)))
         # If subprocesses are still running, keep waiting for them
         elif still_running:
             widget.after(

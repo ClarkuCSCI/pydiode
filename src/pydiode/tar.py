@@ -51,7 +51,8 @@ def main():
                 )
                 sys.exit(1)
             else:
-                raise e
+                print(str(e), file=sys.stderr)
+                sys.exit(1)
         # If you attempt to write to a directory without write access
         except PermissionError as e:
             print(str(e), file=sys.stderr)
