@@ -10,6 +10,15 @@ def get_process_errors(name_popen):
     """
     Get a error message describing subprocesses that exited irregularly.
 
+    An error shouldn't be described if:
+    - The process exited normally (exit code 0)
+    - The user requested cancellation (KeyboardInterrupt in stderr)
+
+    SIGINT is used when the user presses a "Cancel" button (exit code -2).
+    SIGTERM is issued when subprocesses are stuck (exit code -15).
+    However, when subprocesses are run from PyInstaller, all non-regular exits
+    receive code -1. Thus, we also check stderr.
+
     :param name_popen: A list of tuples. Each tuple contains the process name
                        and the subprocess.Popen object. All processes have
                        terminated.
@@ -18,14 +27,11 @@ def get_process_errors(name_popen):
     """
     error_msgs = []
     for name, popen in name_popen:
-        # Ignore:
-        # -2: SIGINT, possibly from user-initiated cancellation.
-        # 0: normal exit.
-        #
-        # Show all other exit codes, including:
-        # -15: SIGTERM, possibly from stuck subprocesses.
-        if popen.returncode not in {-2, 0}:
-            trimmed_stderr = popen.stderr.read().decode("utf-8").strip()
+        trimmed_stderr = popen.stderr.read().decode("utf-8").strip()
+        # Show errors if:
+        if popen.returncode != 0 and not trimmed_stderr.endswith(
+            "KeyboardInterrupt"
+        ):
             error_msg = f'"{name}" exited with code {popen.returncode}'
             if trimmed_stderr:
                 error_msg += f' and stderr "{trimmed_stderr}"'
