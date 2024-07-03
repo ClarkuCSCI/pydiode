@@ -6,11 +6,11 @@ from tkinter import Toplevel, ttk
 from tkinter.filedialog import askdirectory
 from tkinter.messagebox import showinfo
 
-from pydiode.gui.common import check_subprocesses, SLEEP
+from pydiode.gui.common import check_subprocesses, ProcessPipeline, SLEEP
 
-# Arrays of tuples, each containing a subprocess's name and its popen object
-RECEIVE_PROCESSES = []
-RECEIVE_TEST_PROCESSES = []
+# Information about our subprocesses
+RECEIVE_PIPELINE = ProcessPipeline()
+RECEIVE_TEST_PIPELINE = ProcessPipeline()
 
 
 def set_target_directory(target):
@@ -207,9 +207,10 @@ def receive_files(
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    RECEIVE_PROCESSES.extend([("pydiode", pydiode), ("tar", tar)])
+    RECEIVE_PIPELINE.append("pydiode", pydiode)
+    RECEIVE_PIPELINE.append("tar", tar)
 
-    check_subprocesses(root, cancelled, RECEIVE_PROCESSES, on_exit=repeat)
+    check_subprocesses(root, cancelled, RECEIVE_PIPELINE, on_exit=repeat)
     animate()
 
 
@@ -243,7 +244,7 @@ def receive_test(
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
         )
-        RECEIVE_TEST_PROCESSES.extend([("pydiode", pydiode)])
+        RECEIVE_TEST_PIPELINE.append("pydiode", pydiode)
 
-        check_subprocesses(root, cancelled, RECEIVE_TEST_PROCESSES)
+        check_subprocesses(root, cancelled, RECEIVE_TEST_PIPELINE)
         update_button()
