@@ -132,7 +132,7 @@ def check_subprocesses(
         # Mark this cancellation request as handled
         cancelled.set(False)
         # Don't call on_exit if the user requested cancellation
-        on_exit = None if cancel_signal == signal.SIGINT else on_exit
+        on_exit = None if pipeline.cancelled else on_exit
         # At the next check, hopefully the processes will have exited
         widget.after(
             SLEEP,
