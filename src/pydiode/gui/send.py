@@ -4,7 +4,7 @@ import subprocess
 import sys
 from tkinter.filedialog import askopenfilenames
 
-from pydiode.gui.common import check_subprocesses, SLEEP
+from pydiode.gui.common import check_subprocesses, ProcessPipeline, SLEEP
 
 # Number of bits in a byte
 BYTE = 8
@@ -18,9 +18,9 @@ OVERHEAD = 1.085
 INCREMENT_INTERVAL = 25
 # Test message
 TEST_MESSAGE = b"Testing pydiode"
-# Arrays of tuples, each containing a subprocess's name and its popen object
-SEND_PROCESSES = []
-SEND_TEST_PROCESSES = []
+# Information about our subprocesses
+SEND_PIPELINE = ProcessPipeline()
+SEND_TEST_PIPELINE = ProcessPipeline()
 
 
 def add_source_files(sources_var, sources_list):
@@ -137,8 +137,9 @@ def send_or_cancel(
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        SEND_PROCESSES.extend([("tar", tar), ("pydiode", pydiode)])
-        check_subprocesses(root, cancelled, SEND_PROCESSES)
+        SEND_PIPELINE.append("tar", tar)
+        SEND_PIPELINE.append("pydiode", pydiode)
+        check_subprocesses(root, cancelled, SEND_PIPELINE)
 
         increment_size = get_increment_size(sources_list, progress_bar)
 
@@ -195,5 +196,5 @@ def send_test(
     )
     pydiode.stdin.write(TEST_MESSAGE)
     pydiode.stdin.close()
-    SEND_TEST_PROCESSES.extend([("pydiode", pydiode)])
-    check_subprocesses(root, cancelled, SEND_TEST_PROCESSES)
+    SEND_TEST_PIPELINE.append("pydiode", pydiode)
+    check_subprocesses(root, cancelled, SEND_TEST_PIPELINE)

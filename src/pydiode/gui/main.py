@@ -1,5 +1,6 @@
 import configparser
 from pathlib import Path
+import signal
 import sys
 from tkinter import BooleanVar, IntVar, Listbox, StringVar, Tk, ttk
 
@@ -7,8 +8,8 @@ from pydiode.gui.receive import (
     receive_or_cancel,
     receive_test,
     set_target_directory,
-    RECEIVE_PROCESSES,
-    RECEIVE_TEST_PROCESSES,
+    RECEIVE_PIPELINE,
+    RECEIVE_TEST_PIPELINE,
     SavedWindow,
 )
 from pydiode.gui.send import (
@@ -17,8 +18,8 @@ from pydiode.gui.send import (
     send_or_cancel,
     send_test,
     update_tx_btn,
-    SEND_PROCESSES,
-    SEND_TEST_PROCESSES,
+    SEND_PIPELINE,
+    SEND_TEST_PIPELINE,
 )
 import pydiode.pydiode
 import pydiode.tar
@@ -229,14 +230,11 @@ def gui_main():
     # Start handling user input
     root.mainloop()
 
-    # Cancel send and receive subprocesses
-    for name, popen in (
-        SEND_PROCESSES
-        + SEND_TEST_PROCESSES
-        + RECEIVE_PROCESSES
-        + RECEIVE_TEST_PROCESSES
-    ):
-        popen.terminate()
+    # Terminate send and receive subprocesses
+    SEND_PIPELINE.send_signal(signal.SIGTERM)
+    SEND_TEST_PIPELINE.send_signal(signal.SIGTERM)
+    RECEIVE_PIPELINE.send_signal(signal.SIGTERM)
+    RECEIVE_TEST_PIPELINE.send_signal(signal.SIGTERM)
 
     # Save settings
     config["pydiode"] = {
