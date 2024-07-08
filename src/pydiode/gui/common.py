@@ -19,12 +19,19 @@ class ProcessPipeline:
         self.popens.append(popen)
 
     def send_signal(self, s):
+        """
+        :param s: Send this signal to each process in the pipeline.
+        """
         if s == signal.SIGINT:
             self.cancelled = True
         for popen in self.popens:
             popen.send_signal(s)
 
     def clear(self):
+        """
+        Clear the pipeline, so it doesn't grow as more subprocesses are
+        started. This method should be called after all processes have exited.
+        """
         for popen in self.popens:
             if popen.stdout:
                 popen.stdout.close()
@@ -35,15 +42,25 @@ class ProcessPipeline:
         self.cancelled = False
 
     def poll(self):
+        """
+        poll each process for its returncode.
+        """
         for popen in self.popens:
             # If a process has terminated, set returncode.
             # If a process is still running, returncode will be None.
             popen.poll()
 
     def still_running(self):
+        """
+        :returns: True if at least one process is still running,
+                  False if all processes have exited.
+        """
         return any(popen.returncode is None for popen in self.popens)
 
     def _returncodes(self):
+        """
+        :returns: A list of all processes' returncodes.
+        """
         return [popen.returncode for popen in self.popens]
 
     def stuck_running(self):
@@ -84,7 +101,7 @@ class ProcessPipeline:
 
     def get_process_errors(self):
         """
-        Get a error message describing subprocesses that exited irregularly.
+        Get an error message describing subprocesses that exited irregularly.
 
         Describe an error if:
         - The pipeline wasn't cancelled
