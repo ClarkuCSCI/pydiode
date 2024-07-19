@@ -37,6 +37,8 @@ def main():
         try:
             with tarfile.open(fileobj=sys.stdin.buffer, mode="r|") as tar:
                 tar.extractall(args.path)
+                # Print the name of each file extracted
+                tar.list(verbose=False)
         # Don't print the full stack trace for known error types
         except tarfile.ReadError as e:
             if str(e) == "empty file":

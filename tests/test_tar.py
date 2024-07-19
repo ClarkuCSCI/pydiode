@@ -28,12 +28,17 @@ class TestTar(unittest.TestCase):
             tar_receiver = subprocess.Popen(
                 [sys.executable, "-m", "pydiode.tar", "extract", dest],
                 stdin=tar_sender.stdout,
+                stdout=subprocess.PIPE,
             )
 
             # Wait for the subprocesses to finish
-            tar_receiver.wait(timeout=1)
-            tar_sender.wait(timeout=1)
-            tar_sender.stdout.close()
+            receiver_stdout, _ = tar_receiver.communicate(timeout=1)
+            _, _ = tar_sender.communicate(timeout=1)
+
+            # Ensure the printed filenames match the sent files
+            self.assertEqual(
+                list(files.keys()), receiver_stdout.decode("utf-8").split()
+            )
 
             # Ensure the extracted files match the sent files
             for file, data in files.items():
