@@ -20,9 +20,8 @@ import sys
 def main():
     for line in sys.stdin:
         path = Path(line.strip())
-        # Decrypt files ending in .gpg
         if path.exists() and path.suffix == ".gpg":
-            gpg = subprocess.run(
+            subprocess.run(
                 [
                     "gpg",
                     "--batch",
@@ -34,9 +33,6 @@ def main():
                     path,
                 ]
             )
-            # If decryption succeeded, delete the encrypted file
-            if not gpg.returncode:
-                path.unlink()
 
 
 if __name__ == "__main__":
