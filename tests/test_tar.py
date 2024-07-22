@@ -37,7 +37,8 @@ class TestTar(unittest.TestCase):
 
             # Ensure the printed filenames match the sent files
             self.assertEqual(
-                list(files.keys()), receiver_stdout.decode("utf-8").split()
+                [os.path.join(dest, file) for file in files.keys()],
+                receiver_stdout.decode("utf-8").split(),
             )
 
             # Ensure the extracted files match the sent files
