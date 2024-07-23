@@ -34,6 +34,7 @@ def receive_or_cancel(
     progress_bar,
     cancelled,
     receive_repeatedly,
+    decrypt_received,
 ):
     """
     Receive files from the data diode. If we are already receiving, calling
@@ -47,6 +48,8 @@ def receive_or_cancel(
     :param cancelled: Boolean variable indicating cancellation request
     :param receive_repeatedly: Boolean variable indicating whether to receive
                                again after the subprocesses exit.
+    :param decrypt_received: Boolean variable indicating whether to decrypt
+                             received files using gpg
     """
 
     if button["text"] == "Cancel Receiving":
@@ -61,6 +64,7 @@ def receive_or_cancel(
             progress_bar,
             cancelled,
             receive_repeatedly,
+            decrypt_received,
         )
 
 
@@ -164,6 +168,7 @@ def receive_files(
     progress_bar,
     cancelled,
     receive_repeatedly,
+    decrypt_received,
 ):
     def repeat():
         SavedWindow.show_window(root, target_dir)
@@ -178,6 +183,7 @@ def receive_files(
                 progress_bar,
                 cancelled,
                 receive_repeatedly,
+                decrypt_received,
             )
 
     def animate():
@@ -209,6 +215,15 @@ def receive_files(
     )
     RECEIVE_PIPELINE.append("pydiode", pydiode)
     RECEIVE_PIPELINE.append("tar", tar)
+
+    if decrypt_received.get():
+        decrypt = subprocess.Popen(
+            sys.argv + ["decrypt"],
+            stdin=tar.stdout,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        RECEIVE_PIPELINE.append("decrypt", decrypt)
 
     check_subprocesses(root, cancelled, RECEIVE_PIPELINE, on_exit=repeat)
     animate()
