@@ -15,8 +15,11 @@ N_EOF = 4
 # Sleep after sending this many packets
 PACKET_BURST = 10
 
+# Determines system platform
+platform = sys.platform
+
 # Set even loop policy for Windows
-if sys.platform == "win32":
+if platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 
@@ -58,7 +61,7 @@ class AsyncReader:
             # redirection.
             # https://stackoverflow.com/a/71627449
             if not self.stream_reader:
-                if sys.platform == "win32":
+                if platform == "win32":
                     return sys.stdin.buffer.read(self.chunk_max_data_bytes)  # Sync read for Windows
                 else:
                     loop = asyncio.get_event_loop()
