@@ -5,6 +5,9 @@ import sys
 
 from .common import log_packet, PACKET_HEADER
 
+# Set even loop policy for Windows
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 class AsyncWriter:
     def __init__(self, queue, exit_code):

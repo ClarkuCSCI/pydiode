@@ -15,6 +15,10 @@ N_EOF = 4
 # Sleep after sending this many packets
 PACKET_BURST = 10
 
+# Set even loop policy for Windows
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
 
 class Chunk:
     def __init__(self, data):
