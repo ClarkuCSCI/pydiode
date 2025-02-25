@@ -4,6 +4,7 @@ import socket
 import subprocess
 import tempfile
 import unittest
+import sys
 
 from pydiode.generator import generate_data
 from pydiode.send import append_to_chunks
@@ -11,6 +12,7 @@ from pydiode.send import append_to_chunks
 # Number of bytes in a 1 Mbit
 MBIT_BYTES = 125000
 
+platform = sys.platform
 
 class TestIO(unittest.TestCase):
     def test_diode_file_io(self):
@@ -24,16 +26,30 @@ class TestIO(unittest.TestCase):
                 stdout=subprocess.PIPE,
                 shell=True,
             )
-            checksum = subprocess.Popen(
-                "shasum -a 256",
-                stdin=receive.stdout,
-                stdout=subprocess.PIPE,
-                shell=True,
-            )
-            send = subprocess.Popen(
-                f"pydiode send 127.0.0.1 127.0.0.1 < {RANDOM_DATA}",
-                shell=True,
-            )
+            if platform == "win32":
+                checksum = subprocess.Popen(
+                    "certutil -hashfile stdin SHA256",
+                    stdin=receive.stdout,
+                    stdout=subprocess.PIPE,
+                    shell=True,
+                )
+            else:
+                checksum = subprocess.Popen(
+                    "shasum -a 256",
+                    stdin=receive.stdout,
+                    stdout=subprocess.PIPE,
+                    shell=True,
+                )
+            if platform == "win32":
+                send = subprocess.Popen(
+                    f"type {RANDOM_DATA} | pydiode --debug send 127.0.0.1 127.0.0.1",
+                    shell=True,
+                )
+            else:
+                send = subprocess.Popen(
+                    f"pydiode send 127.0.0.1 127.0.0.1 < {RANDOM_DATA}",
+                    shell=True,
+                )
             send.communicate()
             receive.communicate()
             checksum_stdout, _ = checksum.communicate()
