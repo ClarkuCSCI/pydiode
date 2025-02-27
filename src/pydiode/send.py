@@ -29,7 +29,6 @@ class AsyncReader:
     def __init__(self, chunk_max_data_bytes):
         self.chunk_max_data_bytes = chunk_max_data_bytes
         self.regular_file = stat.S_ISREG(os.fstat(sys.stdin.fileno()).st_mode)
-        self.stream_reader = None
 
     async def read(self):
         """
@@ -38,24 +37,15 @@ class AsyncReader:
         :returns: Bytes read from STDIN
         """
         if self.regular_file:
-            # If connected to a regular file, there's no need for a
-            # StreamReader: we can quickly read the maximum amount of data for
-            # a chunk.
+            # If STDIN is a regular file, read a fixed chunk of data using a background thread.
             return await asyncio.get_event_loop().run_in_executor(
                 None, sys.stdin.buffer.read, self.chunk_max_data_bytes
             )
         else:
-            # If STDIN is a pipe or character device, data may become available
-            # incrementally. StreamReader lets us read the input incrementally,
-            # instead of waiting for a fixed number of bytes to become
-            # available.
-            # StreamReader doesn't work (and isn't necessary) with file
-            # redirection.
-            # https://stackoverflow.com/a/71627449
-            if not self.stream_reader:
-                return await asyncio.to_thread(sys.stdin.buffer.read, self.chunk_max_data_bytes)
-            # Read up to the maximum amount of data in a chunk
-            return await self.stream_reader.read(self.chunk_max_data_bytes)
+            # If STDIN is a pipe or character device, data may arrive incrementally.
+            # Use asyncio.to_thread to read the input without blocking the event loop.
+            return await asyncio.to_thread(sys.stdin.buffer.read, self.chunk_max_data_bytes)
+            
 
 
 def append_to_chunks(chunks, data, chunk_max_data_bytes):
