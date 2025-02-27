@@ -58,13 +58,7 @@ class AsyncReader:
             # redirection.
             # https://stackoverflow.com/a/71627449
             if not self.stream_reader:
-                if sys.platform == "win32":
-                    return await asyncio.to_thread(sys.stdin.buffer.read, self.chunk_max_data_bytes)
-                else:
-                    loop = asyncio.get_event_loop()
-                    self.stream_reader = asyncio.StreamReader()
-                    protocol = asyncio.StreamReaderProtocol(self.stream_reader)
-                    await loop.connect_read_pipe(lambda: protocol, sys.stdin.buffer)
+                return await asyncio.to_thread(sys.stdin.buffer.read, self.chunk_max_data_bytes)
             # Read up to the maximum amount of data in a chunk
             return await self.stream_reader.read(self.chunk_max_data_bytes)
 
