@@ -13,7 +13,7 @@ from pydiode.send import append_to_chunks
 MBIT_BYTES = 125000
 
 if sys.platform == "win32":
-    checksum_command = "Get-FileHash -Algorithm SHA256"
+    checksum_command = "certutil -hashfile stdin SHA256"
 else:
     checksum_command = "shasum -a 256"
 
