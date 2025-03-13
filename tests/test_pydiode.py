@@ -30,16 +30,18 @@ class TestIO(unittest.TestCase):
                 stdout=subprocess.PIPE,
                 shell=True,
             )
-            send = subprocess.Popen(
-                f"pydiode send 127.0.0.1 127.0.0.1 < {RANDOM_DATA}",
-                shell=True,
-            )
-            send.communicate()
-            receive.communicate()
-            checksum_stdout, _ = checksum.communicate()
-            actual_checksum = checksum_stdout.decode("utf-8").split(" ")[0]
-            # Check whether the received data matches the sent data
-            self.assertEqual(expected_checksum, actual_checksum)
+            with open(RANDOM_DATA) as f:
+                send = subprocess.Popen(
+                    f"pydiode send 127.0.0.1 127.0.0.1",
+                    shell = True,
+                    stdin = f,
+                )
+                send.communicate()
+                receive.communicate()
+                checksum_stdout, _ = checksum.communicate()
+                actual_checksum = checksum_stdout.decode("utf-8").split(" ")[0]
+                # Check whether the received data matches the sent data
+                self.assertEqual(expected_checksum, actual_checksum)
 
     def test_diode_pipe_io(self):
         expected_hasher = hashlib.sha256()
