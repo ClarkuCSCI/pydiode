@@ -12,11 +12,6 @@ from pydiode.send import append_to_chunks
 # Number of bytes in a 1 Mbit
 MBIT_BYTES = 125000
 
-if sys.platform == "win32":
-    checksum_command = "certutil -hashfile stdin SHA256"
-else:
-    checksum_command = "shasum -a 256"
-
 class TestIO(unittest.TestCase):
     def test_diode_file_io(self):
         with tempfile.TemporaryDirectory() as tempdir:
@@ -30,7 +25,7 @@ class TestIO(unittest.TestCase):
                 shell=True,
             )
             checksum = subprocess.Popen(
-                checksum_command,
+                "sha256sum",
                 stdin=receive.stdout,
                 stdout=subprocess.PIPE,
                 shell=True,
