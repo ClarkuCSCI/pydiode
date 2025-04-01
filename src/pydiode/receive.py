@@ -5,6 +5,12 @@ import sys
 
 from .common import log_packet, PACKET_HEADER
 
+# Set even loop policy for Windows
+# This is because python defaults to the ProactorEventLoop on windows, which does not work with Standard input/output
+# https://docs.python.org/3/library/asyncio-policy.html
+# well when running asyncio.StreamReader and asyncio.StreamWriter.
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 class AsyncWriter:
     def __init__(self, queue, exit_code):
