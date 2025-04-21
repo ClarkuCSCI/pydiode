@@ -21,6 +21,9 @@ from pydiode.gui.send import (
     SEND_PIPELINE,
     SEND_TEST_PIPELINE,
 )
+
+# These modules' main methods are run in subprocesses
+import pydiode.decrypt
 import pydiode.pydiode
 import pydiode.tar
 
@@ -154,6 +157,7 @@ def gui_main():
             rx_progress,
             rx_cancelled,
             receive_repeatedly,
+            decrypt_received,
         ),
     )
     rx_btn.grid(column=0, row=2, pady=5, columnspan=2)
@@ -197,6 +201,15 @@ def gui_main():
         offvalue=False,
     ).grid(column=0, row=3, columnspan=2, sticky="W")
     receive_repeatedly.set(config["pydiode"].get("receive_repeatedly", True))
+    decrypt_received = BooleanVar()
+    ttk.Checkbutton(
+        settings_inner,
+        text="Decrypt received files",
+        variable=decrypt_received,
+        onvalue=True,
+        offvalue=False,
+    ).grid(column=0, row=4, columnspan=2, sticky="W")
+    decrypt_received.set(config["pydiode"].get("decrypt_received", True))
     rx_test_cancelled = BooleanVar(value=False)
     rx_test_btn = ttk.Button(
         settings_inner,
@@ -209,7 +222,7 @@ def gui_main():
             rx_test_cancelled,
         ),
     )
-    rx_test_btn.grid(column=0, row=4, columnspan=2)
+    rx_test_btn.grid(column=0, row=5, columnspan=2)
     tx_test_cancelled = BooleanVar(value=False)
     ttk.Button(
         settings_inner,
@@ -221,7 +234,7 @@ def gui_main():
             port.get(),
             tx_test_cancelled,
         ),
-    ).grid(column=0, row=5, columnspan=2)
+    ).grid(column=0, row=6, columnspan=2)
 
     # Override the default behavior of the Quit menu, so it doesn't cause the
     # application to exit immediately
@@ -244,6 +257,7 @@ def gui_main():
         "receive_ip": receive_ip.get(),
         "port": port.get(),
         "receive_repeatedly": receive_repeatedly.get(),
+        "decrypt_received": decrypt_received.get(),
         "saved_window_should_show": SavedWindow.should_show.get(),
     }
     with open(CONFIG, "w") as configfile:
@@ -263,11 +277,12 @@ def main():
     else:
         # Remove the executable from argv for compatibility with argparse
         sys.argv.pop(0)
-        if sys.argv[0] == "pydiode":
-            # With pydiode as the first argument, launch pydiode
+        # Based on the first argument, run the appropriate main method
+        if sys.argv[0] == "decrypt":
+            pydiode.decrypt.main()
+        elif sys.argv[0] == "pydiode":
             pydiode.pydiode.main()
         elif sys.argv[0] == "tar":
-            # With tar as the first argument, launch tar
             pydiode.tar.main()
         else:
             print(f"Invalid arguments: {sys.argv}", file=sys.stderr)
