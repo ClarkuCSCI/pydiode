@@ -21,8 +21,11 @@ To run the GUI, Tk must be installed. For example:
 - On macOS:
   - `sudo port install py311-tkinter`
   - `sudo port install tk -x11 +quartz`
-- On Linux:
-  - `sudo apt install python3.11-tk`
+- On Linux: `sudo apt install python3.11-tk`
+
+To automatically decrypt PGP-encrypted files:
+- On macOS: `sudo port install gnupg2`
+- On Linux: `sudo apt install gnupg2`
 
 ## GUI Usage
 
