@@ -149,6 +149,7 @@ class AsyncSleeper:
 
 
 async def _send_eof(chunk_duration, transport, digest):
+    logging.debug(f"EOF's digest: {digest.hex()}")
     sleeper = AsyncSleeper(N_EOF, chunk_duration)
     for seq in range(N_EOF):
         header = PACKET_HEADER.pack(b"K", N_EOF, seq)
