@@ -1,9 +1,10 @@
 import asyncio
+import csv
 import hashlib
 import logging
 import sys
 
-from .common import log_packet, DUMP_HEADER, PACKET_HEADER
+from .common import log_packet, PACKET_HEADER
 
 
 class AsyncWriter:
@@ -41,30 +42,58 @@ class AsyncWriter:
 
 
 class AsyncDumper:
-    def __init__(self, queue, dump_file):
+    def __init__(self, queue, packet_details):
         self.queue = queue
-        self.dump_file = open(dump_file, "wb") if dump_file else None
+        if packet_details:
+            self.packet_details = open(packet_details, "w", newline="")
+        else:
+            self.packet_details = None
 
     async def write(self):
         """
-        Write data asynchronously to the dump file.
+        Write packet details asynchronously to a .csv file.
         """
         if self.queue:
+            writer = csv.DictWriter(
+                self.packet_details,
+                fieldnames=[
+                    "ID",
+                    "PacketLength",
+                    "PacketColor",
+                    "NumberOfPackets",
+                    "SequenceNumber",
+                    "PayloadDigest",
+                ],
+            )
+            writer.writeheader()
+            i = 0
             while True:
                 data = await self.queue.get()
                 self.queue.task_done()
                 if data is None:
                     break
                 else:
+                    color, n_packets, seq = PACKET_HEADER.unpack(
+                        data[: PACKET_HEADER.size]
+                    )
+                    sha = hashlib.sha256(data[PACKET_HEADER.size :]).digest()
                     await asyncio.get_event_loop().run_in_executor(
                         None,
-                        self.dump_file.write,
-                        DUMP_HEADER.pack(len(data)) + data,
+                        writer.writerow,
+                        {
+                            "ID": i,
+                            "PacketLength": len(data),
+                            "PacketColor": color.decode(),
+                            "NumberOfPackets": n_packets,
+                            "SequenceNumber": seq,
+                            "PayloadDigest": sha[:4].hex(),
+                        },
                     )
+                    i += 1
 
     def close(self):
-        if self.dump_file:
-            self.dump_file.close()
+        if self.packet_details:
+            self.packet_details.close()
 
 
 class DiodeReceiveProtocol(asyncio.DatagramProtocol):

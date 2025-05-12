@@ -80,9 +80,9 @@ async def async_main():
         default=1234,
     )
     receive_parser.add_argument(
-        "--dump-packets",
+        "--packet-details",
         type=str,
-        help="Write packets into the specified filename",
+        help="Write packet details into the specified .csv",
     )
 
     args = parser.parse_args()
@@ -165,9 +165,9 @@ async def async_main():
             loop = asyncio.get_running_loop()
             exit_code = loop.create_future()
             queue = asyncio.Queue()
-            dump_queue = asyncio.Queue() if args.dump_packets else None
+            dump_queue = asyncio.Queue() if args.packet_details else None
             writer = AsyncWriter(queue, exit_code)
-            dumper = AsyncDumper(dump_queue, args.dump_packets)
+            dumper = AsyncDumper(dump_queue, args.packet_details)
             await asyncio.gather(
                 receive_data(queue, dump_queue, args.read_ip, args.port),
                 writer.write(),
@@ -209,7 +209,7 @@ async def async_main():
             else:
                 raise e
         finally:
-            if args.dump_packets:
+            if args.packet_details:
                 dumper.close()
     else:
         parser.print_help()
