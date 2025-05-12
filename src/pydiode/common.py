@@ -69,13 +69,12 @@ class AsyncDumper:
                 if data is None:
                     break
                 else:
-                    crc32 = zlib.crc32(data)
                     await asyncio.get_event_loop().run_in_executor(
                         None,
                         writer.writerow,
                         {
                             "ID": i,
-                            "PayloadDigest": crc32,
+                            "PayloadDigest": zlib.crc32(data),
                         },
                     )
                     i += 1

@@ -2,8 +2,9 @@ import asyncio
 import hashlib
 import logging
 import sys
+import zlib
 
-from .common import AsyncDumper, log_packet, PACKET_HEADER
+from .common import log_packet, PACKET_HEADER
 
 
 class AsyncWriter:
@@ -41,28 +42,29 @@ class AsyncWriter:
 
 
 class DiodeReceiveProtocol(asyncio.DatagramProtocol):
-    def __init__(self, queue, dump_queue, on_con_lost):
+    def __init__(self, queue, packet_details, on_con_lost):
         self.queue = queue
-        self.dump_queue = dump_queue
+        self.packet_details = packet_details
         self.on_con_lost = on_con_lost
         # Completed chunks
         self.completed = {b"R": False, b"B": False}
         # Packets for the chunks
         self.packets = {b"R": {}, b"B": {}}
+        # Total number of packets received
+        self.n_received = 0
 
     def datagram_received(self, data, addr):
         color, n_packets, seq = PACKET_HEADER.unpack(data[: PACKET_HEADER.size])
 
         log_packet("Received", data)
-        if self.dump_queue and color != b"K":
-            self.dump_queue.put_nowait(data)
+        if color != b"K" and self.packet_details is not None:
+            self.packet_details.append((self.n_received, zlib.crc32(data)))
+            self.n_received += 1
 
         # If EOF (blacK) packet
         if color == b"K":
             # Put None to indicate the transfer is complete
             self.queue.put_nowait(None)
-            if self.dump_queue:
-                self.dump_queue.put_nowait(None)
             # Put the EOF's payload, a digest of the sent data
             self.queue.put_nowait(data[PACKET_HEADER.size :])
             self.on_con_lost.set_result(True)
@@ -84,7 +86,7 @@ class DiodeReceiveProtocol(asyncio.DatagramProtocol):
                 self.completed[other_color] = False
 
 
-async def receive_data(queue, dump_queue, read_ip, port):
+async def receive_data(queue, packet_details, read_ip, port):
     """
     Receive chunks over the network.
 
@@ -95,7 +97,7 @@ async def receive_data(queue, dump_queue, read_ip, port):
     loop = asyncio.get_running_loop()
     on_con_lost = loop.create_future()
     transport, protocol = await loop.create_datagram_endpoint(
-        lambda: DiodeReceiveProtocol(queue, dump_queue, on_con_lost),
+        lambda: DiodeReceiveProtocol(queue, packet_details, on_con_lost),
         local_addr=(read_ip, port),
     )
     try:

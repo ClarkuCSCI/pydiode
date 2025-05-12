@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import csv
 import logging
 import sys
 
@@ -172,13 +173,11 @@ async def async_main():
             loop = asyncio.get_running_loop()
             exit_code = loop.create_future()
             queue = asyncio.Queue()
-            dump_queue = asyncio.Queue() if args.packet_details else None
+            packet_details = [] if args.packet_details else None
             writer = AsyncWriter(queue, exit_code)
-            dumper = AsyncDumper(dump_queue, args.packet_details)
             await asyncio.gather(
-                receive_data(queue, dump_queue, args.read_ip, args.port),
+                receive_data(queue, packet_details, args.read_ip, args.port),
                 writer.write(),
-                dumper.write(),
             )
             await exit_code
             sys.exit(exit_code.result())
@@ -217,7 +216,14 @@ async def async_main():
                 raise e
         finally:
             if args.packet_details:
-                dumper.close()
+                with open(args.packet_details, "w", newline="") as f:
+                    writer = csv.DictWriter(
+                        f,
+                        fieldnames=["ID", "PayloadDigest"],
+                    )
+                    writer.writeheader()
+                    for i, digest in packet_details:
+                        writer.writerow({"ID": i, "PayloadDigest": digest})
     else:
         parser.print_help()
 
