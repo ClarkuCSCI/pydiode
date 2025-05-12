@@ -1,9 +1,9 @@
 import asyncio
 import csv
-import hashlib
 import logging
 import struct
 import sys
+import zlib
 
 # How much data will fit in each packet we send?
 # Experimentally, these are the maximum UDP payloads I can send on macOS:
@@ -58,10 +58,6 @@ class AsyncDumper:
                 self.packet_details,
                 fieldnames=[
                     "ID",
-                    "PacketColor",
-                    "NumberOfPackets",
-                    "SequenceNumber",
-                    "PacketLength",
                     "PayloadDigest",
                 ],
             )
@@ -73,20 +69,13 @@ class AsyncDumper:
                 if data is None:
                     break
                 else:
-                    color, n_packets, seq = PACKET_HEADER.unpack(
-                        data[: PACKET_HEADER.size]
-                    )
-                    sha = hashlib.sha256(data[PACKET_HEADER.size :]).digest()
+                    crc32 = zlib.crc32(data)
                     await asyncio.get_event_loop().run_in_executor(
                         None,
                         writer.writerow,
                         {
                             "ID": i,
-                            "PacketColor": color.decode(),
-                            "NumberOfPackets": n_packets,
-                            "SequenceNumber": seq,
-                            "PacketLength": len(data),
-                            "PayloadDigest": sha[:4].hex(),
+                            "PayloadDigest": crc32,
                         },
                     )
                     i += 1
