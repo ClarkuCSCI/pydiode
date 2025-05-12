@@ -6,7 +6,7 @@ import sys
 import pydiode.common
 from .common import BYTE, MAX_PAYLOAD, PACKET_HEADER, UDP_MAX_BYTES
 from .send import read_data, send_data
-from .receive import AsyncWriter, receive_data
+from .receive import AsyncDumper, AsyncWriter, receive_data
 
 
 async def async_main():
@@ -78,6 +78,11 @@ async def async_main():
         type=int,
         help="Send and receive data using this port",
         default=1234,
+    )
+    receive_parser.add_argument(
+        "--dump-packets",
+        type=str,
+        help="Write packets into the specified filename",
     )
 
     args = parser.parse_args()
@@ -160,9 +165,13 @@ async def async_main():
             loop = asyncio.get_running_loop()
             exit_code = loop.create_future()
             queue = asyncio.Queue()
+            dump_queue = asyncio.Queue() if args.dump_packets else None
             writer = AsyncWriter(queue, exit_code)
+            dumper = AsyncDumper(dump_queue, args.dump_packets)
             await asyncio.gather(
-                receive_data(queue, args.read_ip, args.port), writer.write()
+                receive_data(queue, dump_queue, args.read_ip, args.port),
+                writer.write(),
+                dumper.write(),
             )
             await exit_code
             sys.exit(exit_code.result())
@@ -199,6 +208,9 @@ async def async_main():
                 sys.exit(1)
             else:
                 raise e
+        finally:
+            if args.dump_packets:
+                dumper.close()
     else:
         parser.print_help()
 

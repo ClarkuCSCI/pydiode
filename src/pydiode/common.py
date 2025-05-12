@@ -27,6 +27,9 @@ MAX_PAYLOAD = UDP_MAX_BYTES - PACKET_HEADER.size
 # Only log packet details when debugging, due to CPU overhead.
 LOG_PACKETS = False
 
+# Packet size, represented as an unsigned short (2 bytes).
+DUMP_HEADER = struct.Struct("<H")
+
 
 def log_packet(prefix, data):
     if LOG_PACKETS:
