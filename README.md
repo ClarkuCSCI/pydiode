@@ -27,6 +27,8 @@ To automatically decrypt PGP-encrypted files:
 - On macOS: `sudo port install gnupg2`
 - On Linux: `sudo apt install gnupg2`
 
+Finally, ensure the `gpg` command is on your PATH. On macOS, this may require using the `launchctl config user path` command.
+
 ## GUI Usage
 
 The `pydiode-gui` command will launch the GUI. The GUI can also be run from a frozen executable (see packaging instructions below).
