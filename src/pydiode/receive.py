@@ -2,7 +2,6 @@ import asyncio
 import hashlib
 import logging
 import sys
-import zlib
 
 from .common import log_packet, PACKET_HEADER
 
@@ -50,16 +49,13 @@ class DiodeReceiveProtocol(asyncio.DatagramProtocol):
         self.completed = {b"R": False, b"B": False}
         # Packets for the chunks
         self.packets = {b"R": {}, b"B": {}}
-        # Total number of packets received
-        self.n_received = 0
 
     def datagram_received(self, data, addr):
         color, n_packets, seq = PACKET_HEADER.unpack(data[: PACKET_HEADER.size])
 
         log_packet("Received", data)
         if color != b"K" and self.packet_details is not None:
-            self.packet_details.append((self.n_received, zlib.crc32(data)))
-            self.n_received += 1
+            self.packet_details.append(data)
 
         # If EOF (blacK) packet
         if color == b"K":

@@ -1,11 +1,16 @@
 import argparse
 import asyncio
-import csv
 import logging
 import sys
 
 import pydiode.common
-from .common import AsyncDumper, BYTE, MAX_PAYLOAD, PACKET_HEADER, UDP_MAX_BYTES
+from .common import (
+    BYTE,
+    MAX_PAYLOAD,
+    PACKET_HEADER,
+    UDP_MAX_BYTES,
+    write_packet_details,
+)
 from .send import read_data, send_data
 from .receive import AsyncWriter, receive_data
 
@@ -127,22 +132,22 @@ async def async_main():
         try:
             # Queue of chunks to be sent
             chunks = []
-            dump_queue = asyncio.Queue() if args.packet_details else None
-            dumper = AsyncDumper(dump_queue, args.packet_details)
+            packet_details = [] if args.packet_details else None
             # Read and send data concurrently
             await asyncio.gather(
                 read_data(chunks, chunk_max_data_bytes, args.chunk_duration),
                 send_data(
                     chunks,
-                    dump_queue,
+                    packet_details,
                     args.chunk_duration,
                     args.redundancy,
                     args.read_ip,
                     args.write_ip,
                     args.port,
                 ),
-                dumper.write(),
             )
+            if args.packet_details:
+                write_packet_details(args.packet_details, packet_details)
         # Don't print the full stack trace for known error types
         except OSError as e:
             if str(e) in {
@@ -163,9 +168,6 @@ async def async_main():
                 sys.exit(1)
             else:
                 raise e
-        finally:
-            if args.packet_details:
-                dumper.close()
 
     # If we are receiving data
     elif "read_ip" in args:
@@ -180,6 +182,8 @@ async def async_main():
                 writer.write(),
             )
             await exit_code
+            if args.packet_details:
+                write_packet_details(args.packet_details, packet_details)
             sys.exit(exit_code.result())
         # Don't print the full stack trace for known error types
         except OSError as e:
@@ -214,16 +218,6 @@ async def async_main():
                 sys.exit(1)
             else:
                 raise e
-        finally:
-            if args.packet_details:
-                with open(args.packet_details, "w", newline="") as f:
-                    writer = csv.DictWriter(
-                        f,
-                        fieldnames=["ID", "PayloadDigest"],
-                    )
-                    writer.writeheader()
-                    for i, digest in packet_details:
-                        writer.writerow({"ID": i, "PayloadDigest": digest})
     else:
         parser.print_help()
 
