@@ -50,7 +50,7 @@ async def async_main():
         "--max-bitrate",
         type=int,
         help="Maximum number of bits transferred per second",
-        default=1000000000,
+        default=500000000,
     )
     send_parser.add_argument(
         "--chunk-duration",

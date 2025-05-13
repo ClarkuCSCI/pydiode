@@ -4,10 +4,11 @@ import sys
 
 # How much data will fit in each packet we send?
 # Experimentally, these are the maximum UDP payloads I can send on macOS:
-# - 1472 for multicast packets
-# - 9216 for non-multicast packets
-# macOS can receive multicast packets of either size.
-# For multicast support, we default to 1472 when running on macOS.
+# - 1472 for broadcast packets
+# - 9216 for non-broadcast packets
+# Packets >1472 bytes are fragmented: https://stackoverflow.com/a/15003663/
+# macOS can receive broadcast packets of either size.
+# For broadcast support, we default to 1472 when running on macOS.
 UDP_MAX_BYTES = 1472 if sys.platform == "darwin" else 9216
 
 # Number of bits in a byte
