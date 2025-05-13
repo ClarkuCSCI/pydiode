@@ -9,7 +9,7 @@ from pydiode.gui.common import check_subprocesses, ProcessPipeline, SLEEP
 # Number of bits in a byte
 BYTE = 8
 # pydiode's default settings. Eventually, these will be configurable.
-MAX_BITRATE = 1000000000
+MAX_BITRATE = 500000000
 REDUNDANCY = 2
 # Extra time needed for transfers, considering more than just bitrate and
 # redundancy. Determined experimentally with a 1 Gbit transfer.
