@@ -8,8 +8,7 @@ from pydiode.gui.common import check_subprocesses, ProcessPipeline, SLEEP
 
 # Number of bits in a byte
 BYTE = 8
-# pydiode's default settings. Eventually, these will be configurable.
-MAX_BITRATE = 100000000
+# pydiode's default setting. We might make this configurable.
 REDUNDANCY = 2
 # Extra time needed for transfers, considering more than just bitrate and
 # redundancy. Determined experimentally with a 1 Gbit transfer.
@@ -71,22 +70,37 @@ def update_tx_btn(tx_btn, sources_list):
         tx_btn.state(["disabled"])
 
 
-def get_increment_size(sources_list, progress_bar):
+def get_increment_size(sources_list, progress_bar, bitrate_int):
     """
     By how much should we increment the progress bar?
 
     :param sources_list: A list of filenames to send through the data diode
     :param progress_bar: Progress bar widget
+    :param bitrate_int: Maximum number of bits transferred per second
     """
     # Sum of file sizes (bytes) for time estimate
     size = 0
     for source in sources_list:
         size += os.path.getsize(source)
     # How much time will the transfer take, in milliseconds?
-    est_time = size * BYTE / MAX_BITRATE * REDUNDANCY * OVERHEAD * 1000
+    est_time = size * BYTE / bitrate_int * REDUNDANCY * OVERHEAD * 1000
     # By how much do we increment each time?
     n_increments = est_time / INCREMENT_INTERVAL
     return progress_bar["maximum"] / n_increments
+
+
+def bitrate_str_to_int(bitrate_str):
+    """
+    Convert human-readable metric bitrate to number of bits per second.
+
+    :param bitrate_str: Human-readable metric bitrate (e.g., "100 Mbit/s")
+    :returns: Number of bits per second (e.g., 100000000)
+    """
+    suffix_mult = {" Mbit/s": 1_000_000, " Gbit/s": 1_000_000_000}
+    for suffix, mult in suffix_mult.items():
+        if bitrate_str.endswith(suffix):
+            return int(bitrate_str.replace(suffix, "")) * mult
+    raise ValueError(f"Unknown bitrate format: {bitrate_str}")
 
 
 def send_or_cancel(
@@ -95,6 +109,7 @@ def send_or_cancel(
     send_ip,
     receive_ip,
     port,
+    bitrate_str,
     button,
     progress_bar,
     cancelled,
@@ -107,6 +122,7 @@ def send_or_cancel(
     :param send_ip: Send data from this IP
     :param receive_ip: Send data to this IP
     :param port: Send data using this port
+    :param bitrate_str: Maximum number of bits transferred per second
     :param button: Start/Cancel button widget
     :param progress_bar: Progress bar widget
     :param cancelled: Boolean variable indicating cancellation request
@@ -119,6 +135,7 @@ def send_or_cancel(
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
+        bitrate_int = bitrate_str_to_int(bitrate_str)
         pydiode = subprocess.Popen(
             sys.argv
             + [
@@ -129,7 +146,7 @@ def send_or_cancel(
                 "--port",
                 port,
                 "--max-bitrate",
-                str(MAX_BITRATE),
+                str(bitrate_int),
                 "--redundancy",
                 str(REDUNDANCY),
             ],
@@ -141,7 +158,9 @@ def send_or_cancel(
         SEND_PIPELINE.append("pydiode", pydiode)
         check_subprocesses(root, cancelled, SEND_PIPELINE)
 
-        increment_size = get_increment_size(sources_list, progress_bar)
+        increment_size = get_increment_size(
+            sources_list, progress_bar, bitrate_int
+        )
 
         def animate():
             # If either subprocess hasn't exited, keep animating
@@ -170,6 +189,7 @@ def send_test(
     send_ip,
     receive_ip,
     port,
+    bitrate_str,
     cancelled,
 ):
     """
@@ -186,7 +206,7 @@ def send_test(
             "--port",
             port,
             "--max-bitrate",
-            str(MAX_BITRATE),
+            str(bitrate_str_to_int(bitrate_str)),
             "--redundancy",
             str(REDUNDANCY),
         ],

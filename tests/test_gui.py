@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import patch
 
 from pydiode.gui.common import ProcessPipeline
+from pydiode.gui.send import bitrate_str_to_int
 
 
 class TestGUI(unittest.TestCase):
@@ -36,3 +37,10 @@ class TestGUI(unittest.TestCase):
         self.assertFalse(self.pipeline.stuck_running())
         mock_returncodes.return_value = [None, None]
         self.assertFalse(self.pipeline.stuck_running())
+
+    def test_bitrate_str_to_int(self):
+        self.assertEqual(bitrate_str_to_int("100 Mbit/s"), 100000000)
+        self.assertEqual(bitrate_str_to_int("250 Mbit/s"), 250000000)
+        self.assertEqual(bitrate_str_to_int("500 Mbit/s"), 500000000)
+        self.assertEqual(bitrate_str_to_int("750 Mbit/s"), 750000000)
+        self.assertEqual(bitrate_str_to_int("1 Gbit/s"), 1000000000)
