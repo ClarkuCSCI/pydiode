@@ -118,6 +118,7 @@ def gui_main():
             send_ip.get(),
             receive_ip.get(),
             port.get(),
+            key_id.get(),
             bitrate.get(),
             tx_btn,
             tx_progress,
@@ -154,6 +155,7 @@ def gui_main():
             target.get(),
             receive_ip.get(),
             port.get(),
+            key_id.get(),
             rx_btn,
             rx_progress,
             rx_cancelled,
@@ -193,7 +195,13 @@ def gui_main():
     port = StringVar()
     ttk.Entry(settings_inner, textvariable=port).grid(column=1, row=2)
     port.set(config["pydiode"].get("port", "1234"))
-    ttk.Label(settings_inner, text="Bitrate:").grid(column=0, row=3, sticky="E")
+    ttk.Label(settings_inner, text="PGP Key ID:").grid(
+        column=0, row=3, sticky="E"
+    )
+    key_id = StringVar()
+    ttk.Entry(settings_inner, textvariable=key_id).grid(column=1, row=3)
+    key_id.set(config["pydiode"].get("key_id", ""))
+    ttk.Label(settings_inner, text="Bitrate:").grid(column=0, row=4, sticky="E")
     bitrate = StringVar()
     ttk.Combobox(
         settings_inner,
@@ -205,8 +213,9 @@ def gui_main():
             "750 Mbit/s",
             "1 Gbit/s",
         ),
+        width=12,
         state="readonly",
-    ).grid(column=1, row=3)
+    ).grid(column=1, row=4, sticky="W")
     bitrate.set(config["pydiode"].get("bitrate", "100 Mbit/s"))
     receive_repeatedly = BooleanVar()
     ttk.Checkbutton(
@@ -215,7 +224,7 @@ def gui_main():
         variable=receive_repeatedly,
         onvalue=True,
         offvalue=False,
-    ).grid(column=0, row=4, columnspan=2, sticky="W")
+    ).grid(column=0, row=5, columnspan=2, sticky="W")
     receive_repeatedly.set(config["pydiode"].get("receive_repeatedly", True))
     decrypt_received = BooleanVar()
     ttk.Checkbutton(
@@ -224,7 +233,7 @@ def gui_main():
         variable=decrypt_received,
         onvalue=True,
         offvalue=False,
-    ).grid(column=0, row=5, columnspan=2, sticky="W")
+    ).grid(column=0, row=6, columnspan=2, sticky="W")
     decrypt_received.set(config["pydiode"].get("decrypt_received", True))
     rx_test_cancelled = BooleanVar(value=False)
     rx_test_btn = ttk.Button(
@@ -238,7 +247,7 @@ def gui_main():
             rx_test_cancelled,
         ),
     )
-    rx_test_btn.grid(column=0, row=6, columnspan=2)
+    rx_test_btn.grid(column=0, row=7, columnspan=2)
     tx_test_cancelled = BooleanVar(value=False)
     ttk.Button(
         settings_inner,
@@ -251,7 +260,7 @@ def gui_main():
             bitrate.get(),
             tx_test_cancelled,
         ),
-    ).grid(column=0, row=7, columnspan=2)
+    ).grid(column=0, row=8, columnspan=2)
 
     # Override the default behavior of the Quit menu, so it doesn't cause the
     # application to exit immediately
@@ -273,6 +282,7 @@ def gui_main():
         "send_ip": send_ip.get(),
         "receive_ip": receive_ip.get(),
         "port": port.get(),
+        "key_id": key_id.get(),
         "bitrate": bitrate.get(),
         "receive_repeatedly": receive_repeatedly.get(),
         "decrypt_received": decrypt_received.get(),

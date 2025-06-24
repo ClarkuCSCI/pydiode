@@ -109,6 +109,7 @@ def send_or_cancel(
     send_ip,
     receive_ip,
     port,
+    key_id,
     bitrate_str,
     button,
     progress_bar,
@@ -122,6 +123,7 @@ def send_or_cancel(
     :param send_ip: Send data from this IP
     :param receive_ip: Send data to this IP
     :param port: Send data using this port
+    :param key_id: Key ID of the PGP key used to encrypt pydiode's STDIN
     :param bitrate_str: Maximum number of bits transferred per second
     :param button: Start/Cancel button widget
     :param progress_bar: Progress bar widget
@@ -135,6 +137,25 @@ def send_or_cancel(
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
+        SEND_PIPELINE.append("tar", tar)
+
+        if key_id:
+            gpg = subprocess.Popen(
+                [
+                    "gpg",
+                    "--batch",
+                    "--encrypt",
+                    "--trust-model",
+                    "always",
+                    "--recipient",
+                    key_id,
+                ],
+                stdin=tar.stdout,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            SEND_PIPELINE.append("gpg", gpg)
+
         bitrate_int = bitrate_str_to_int(bitrate_str)
         pydiode = subprocess.Popen(
             sys.argv
@@ -150,12 +171,12 @@ def send_or_cancel(
                 "--redundancy",
                 str(REDUNDANCY),
             ],
-            stdin=tar.stdout,
+            stdin=gpg.stdout if key_id else tar.stdout,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        SEND_PIPELINE.append("tar", tar)
         SEND_PIPELINE.append("pydiode", pydiode)
+
         check_subprocesses(root, cancelled, SEND_PIPELINE)
 
         increment_size = get_increment_size(
