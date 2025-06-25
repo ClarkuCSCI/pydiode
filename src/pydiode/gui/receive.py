@@ -31,6 +31,7 @@ def receive_or_cancel(
     target_dir,
     receive_ip,
     port,
+    key_id,
     button,
     progress_bar,
     cancelled,
@@ -44,6 +45,7 @@ def receive_or_cancel(
     :param target_dir: Where to save the files received
     :param receive_ip: Receive data using this IP
     :param port: Receive data using this port
+    :param key_id: Key ID of the PGP key used to encrypt pydiode's STDIN
     :param button: Start/Cancel button widget
     :param progress_bar: Progress bar widget
     :param cancelled: Boolean variable indicating cancellation request
@@ -61,6 +63,7 @@ def receive_or_cancel(
             target_dir,
             receive_ip,
             port,
+            key_id,
             button,
             progress_bar,
             cancelled,
@@ -74,6 +77,7 @@ def receive_files(
     target_dir,
     receive_ip,
     port,
+    key_id,
     button,
     progress_bar,
     cancelled,
@@ -89,6 +93,7 @@ def receive_files(
                 target_dir,
                 receive_ip,
                 port,
+                key_id,
                 button,
                 progress_bar,
                 cancelled,
@@ -117,13 +122,23 @@ def receive_files(
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
+    RECEIVE_PIPELINE.append("pydiode", pydiode)
+
+    if key_id:
+        gpg = subprocess.Popen(
+            ["gpg", "--batch", "--decrypt"],
+            stdin=pydiode.stdout,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        RECEIVE_PIPELINE.append("gpg", gpg)
+
     tar = subprocess.Popen(
         sys.argv + ["tar", "extract", target_dir],
-        stdin=pydiode.stdout,
+        stdin=gpg.stdout if key_id else pydiode.stdout,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    RECEIVE_PIPELINE.append("pydiode", pydiode)
     RECEIVE_PIPELINE.append("tar", tar)
 
     if decrypt_received.get():

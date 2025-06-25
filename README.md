@@ -17,17 +17,38 @@ pip install .
 ```
 **Note:** If local installs are slow, remove large files from the repo (e.g., `build`, `dist`, and `random_data`). When installing, pip makes a copy of everything, so large files slow it down.
 
-To run the GUI, Tk must be installed. For example:
+To run the GUI, Tk must be installed.
 - On macOS:
   - `sudo port install py311-tkinter`
   - `sudo port install tk -x11 +quartz`
 - On Linux: `sudo apt install python3.11-tk`
 
-To automatically decrypt PGP-encrypted files:
+### Secure Configuration
+
+The GUI supports using PGP encryption in two ways. First, to encrypt and decrypt all data sent through the GUI. Second, to automatically decrypt PGP-encrypted files (i.e., files ending in .gpg). To use these features, you must install GnuPG.
 - On macOS: `sudo port install gnupg2`
 - On Linux: `sudo apt install gnupg2`
 
-Finally, ensure the `gpg` command is on your PATH. On macOS, this may require using the `launchctl config user path` command.
+I recommend reading [the EFF's guide to public key encryption](https://ssd.eff.org/module/deep-dive-end-end-encryption-how-do-public-key-encryption-systems-work) to get familiar with the terminology used by PGP.
+
+PGP's security depends on keeping your secret key secure. Since decryption is performed by the receiving computer, it is best to only store your secret key on that computer. Thus, we suggest generating a key pair on the receiver. It is okay to accept the default options, though you should specify your name.
+```
+gpg --full-generate-key
+```
+
+Next, export your public key. The name specified during key generation (e.g., Peter Story) can be used to identify the key (i.e., the name serves as a key identifier).
+```
+gpg --armor --export "Peter Story" > story_public.asc
+```
+
+Then, copy the public key to the sending computer, and import it:
+```
+gpg --import story_public.asc
+```
+
+In the pydiode GUI, add the key's identifier to the "PGP Key ID" field in the "Settings" tab on the sender and receiver. It is easiest to use your name, assuming you specified it during key generation (e.g., Peter Story). If you also want to automatically decrypt files ending in .gpg, check the "Decrypt received files" checkbox.
+
+Finally, ensure the `gpg` command is on your PATH, so the pydiode GUI can invoke it. On macOS, this may require using the `launchctl config user path` command.
 
 ## GUI Usage
 
