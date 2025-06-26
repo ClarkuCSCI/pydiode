@@ -15,7 +15,6 @@ Or to install from source, clone the repo then run:
 ```
 pip install .
 ```
-**Note:** If local installs are slow, remove large files from the repo (e.g., `build`, `dist`, and `random_data`). When installing, pip makes a copy of everything, so large files slow it down.
 
 To run the GUI, Tk must be installed.
 - On macOS:
@@ -93,6 +92,10 @@ Since [the unit tests run on the installed code](https://blog.ionelmc.ro/2014/05
 ### Packaging Frozen Executables
 
 Follow the instructions in `freeze/README.md`
+
+### Speed Up Local Installs
+
+To speed up local installs (i.e., `pip install .`), remove large files from the repo (e.g., `build`, `dist`, and `random_data`). When installing, pip makes a copy of everything, so large files slow it down.
 
 ## Citation
 
