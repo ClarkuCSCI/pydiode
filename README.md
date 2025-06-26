@@ -48,7 +48,10 @@ gpg --import story_public.asc
 
 In the pydiode GUI, add the key's identifier to the "PGP Key ID" field in the "Settings" tab on the sender and receiver. It is easiest to use your name, assuming you specified it during key generation (e.g., Peter Story). If you also want to automatically decrypt files ending in .gpg, check the "Decrypt received files" checkbox.
 
-Finally, ensure the `gpg` command is on your PATH, so the pydiode GUI can invoke it. On macOS, this may require using the `launchctl config user path` command.
+Finally, ensure the `gpg` command is on your PATH, so the pydiode GUI can invoke it. On macOS, this can be accomplished [using launchctl:](https://stackoverflow.com/a/70510488/3043071)
+```
+sudo launchctl config user path /usr/bin:/bin:/usr/sbin:/sbin:/opt/local/bin
+```
 
 ## GUI Usage
 
