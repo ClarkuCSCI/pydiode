@@ -56,6 +56,8 @@ sudo launchctl config user path /usr/bin:/bin:/usr/sbin:/sbin:/opt/local/bin
 
 The `pydiode-gui` command will launch the GUI. The GUI can also be run from a frozen executable (see packaging instructions below).
 
+![Diode Transfer's send and receive tabs. The send tab lets you add files to the file transfer queue. The receive tab lets you save files to a directory.](https://datadiode.net/images/software.png)
+
 ## Command-Line Usage
 
 Documentation:
