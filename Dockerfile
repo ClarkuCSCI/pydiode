@@ -1,5 +1,4 @@
 FROM --platform=linux/amd64 python:3.11-bullseye
-MAINTAINER PeStory@clarku.edu
 
 # Add source code
 ADD src /root/pydiode/src
