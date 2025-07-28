@@ -227,9 +227,9 @@ async def send_data(
         allow_broadcast=True,
     )
 
-    # Mitigate early packet loss by sending the first chunk at least 10 times
+    # Mitigate early packet loss by sending the first chunk at least 5 times
     warmup = True
-    warmup_redundancy = max(10, redundancy)
+    warmup_redundancy = max(5, redundancy)
 
     # Send data until a None chunk is encountered, indicating EOF
     while True:
