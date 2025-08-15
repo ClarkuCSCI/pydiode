@@ -4,9 +4,9 @@ import logging
 import sys
 
 import pydiode.common
-from .common import BYTE, MAX_PAYLOAD, PACKET_HEADER, UDP_MAX_BYTES
+from .common import AsyncDumper, BYTE, MAX_PAYLOAD, PACKET_HEADER, UDP_MAX_BYTES
 from .send import read_data, send_data
-from .receive import AsyncDumper, AsyncWriter, receive_data
+from .receive import AsyncWriter, receive_data
 
 
 async def async_main():
@@ -30,6 +30,11 @@ async def async_main():
         action="store_const",
         dest="loglevel",
         const=logging.INFO,
+    )
+    parser.add_argument(
+        "--packet-details",
+        type=str,
+        help="Write packet details into the specified .csv",
     )
 
     send_parser = subparsers.add_parser("send", help="Send data")
@@ -79,11 +84,6 @@ async def async_main():
         help="Send and receive data using this port",
         default=1234,
     )
-    receive_parser.add_argument(
-        "--packet-details",
-        type=str,
-        help="Write packet details into the specified .csv",
-    )
 
     args = parser.parse_args()
     logging.basicConfig(level=args.loglevel)
@@ -126,17 +126,21 @@ async def async_main():
         try:
             # Queue of chunks to be sent
             chunks = []
+            dump_queue = asyncio.Queue() if args.packet_details else None
+            dumper = AsyncDumper(dump_queue, args.packet_details)
             # Read and send data concurrently
             await asyncio.gather(
                 read_data(chunks, chunk_max_data_bytes, args.chunk_duration),
                 send_data(
                     chunks,
+                    dump_queue,
                     args.chunk_duration,
                     args.redundancy,
                     args.read_ip,
                     args.write_ip,
                     args.port,
                 ),
+                dumper.write(),
             )
         # Don't print the full stack trace for known error types
         except OSError as e:
@@ -158,6 +162,9 @@ async def async_main():
                 sys.exit(1)
             else:
                 raise e
+        finally:
+            if args.packet_details:
+                dumper.close()
 
     # If we are receiving data
     elif "read_ip" in args:

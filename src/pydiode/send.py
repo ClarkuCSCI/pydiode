@@ -7,7 +7,7 @@ import stat
 import sys
 import time
 
-from .common import log_packet, MAX_PAYLOAD, PACKET_HEADER
+from .common import AsyncDumper, log_packet, MAX_PAYLOAD, PACKET_HEADER
 
 # Send the first chunk at least this many times
 MIN_WARMUP_CHUNKS = 5
@@ -168,7 +168,9 @@ async def _send_eof(redundancy, chunk_duration, transport, digest):
             await sleeper.sleep()
 
 
-async def _send_chunk(chunk, color, redundancy, chunk_duration, transport):
+async def _send_chunk(
+    chunk, dump_queue, color, redundancy, chunk_duration, transport
+):
     start = time.time()
     # Wrap the chunk bytes in a helper class
     c = Chunk(chunk)
@@ -186,6 +188,8 @@ async def _send_chunk(chunk, color, redundancy, chunk_duration, transport):
             data = header + payload
             transport.sendto(data)
             log_packet("Sent", data)
+            if dump_queue:
+                dump_queue.put_nowait(data)
             # Sleep after "packet_burst" packets have been sent
             if ((seq + 1) % packet_burst) == 0:
                 await sleeper.sleep()
@@ -207,7 +211,7 @@ class DiodeSendProtocol(asyncio.DatagramProtocol):
 
 
 async def send_data(
-    chunks, chunk_duration, redundancy, read_ip, write_ip, port
+    chunks, dump_queue, chunk_duration, redundancy, read_ip, write_ip, port
 ):
     """
     Send chunks over the network.
@@ -246,6 +250,8 @@ async def send_data(
             chunk = chunks.pop(0)
             # There will never be more data
             if chunk is None:
+                if dump_queue:
+                    dump_queue.put_nowait(None)
                 await _send_eof(
                     redundancy, chunk_duration, transport, sha.digest()
                 )
@@ -255,6 +261,7 @@ async def send_data(
                 sha.update(chunk)
                 await _send_chunk(
                     chunk,
+                    dump_queue,
                     color,
                     redundancy if not warmup else warmup_redundancy,
                     chunk_duration,
