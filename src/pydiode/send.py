@@ -227,6 +227,10 @@ async def send_data(
         allow_broadcast=True,
     )
 
+    # Mitigate early packet loss by sending the first chunk at least 5 times
+    warmup = True
+    warmup_redundancy = max(5, redundancy)
+
     # Send data until a None chunk is encountered, indicating EOF
     while True:
         if len(chunks) > 0:
@@ -239,8 +243,13 @@ async def send_data(
             else:
                 sha.update(chunk)
                 await _send_chunk(
-                    chunk, color, redundancy, chunk_duration, transport
+                    chunk,
+                    color,
+                    redundancy if not warmup else warmup_redundancy,
+                    chunk_duration,
+                    transport,
                 )
+                warmup = False
                 # Switch the color
                 color = b"B" if color == b"R" else b"R"
         # Wait for more data
