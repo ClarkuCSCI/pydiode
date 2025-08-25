@@ -9,11 +9,16 @@ import time
 
 from .common import log_packet, MAX_PAYLOAD, PACKET_HEADER
 
-# Number of EOF packets to send per chunk duration
-N_EOF = 4
+# Send the first chunk at least this many times
+MIN_WARMUP_CHUNKS = 5
 
 # Sleep after sending this many packets
 PACKET_BURST = 10
+
+# Number of EOF packets per EOF chunk
+N_EOF_PACKETS = 10
+# Send the EOF chunk at least this many times
+MIN_EOF_CHUNKS = 5
 
 
 class Chunk:
@@ -148,15 +153,19 @@ class AsyncSleeper:
             self.n = self.n_sleeps
 
 
-async def _send_eof(chunk_duration, transport, digest):
+async def _send_eof(redundancy, chunk_duration, transport, digest):
     logging.debug(f"EOF's digest: {digest.hex()}")
-    sleeper = AsyncSleeper(N_EOF, chunk_duration)
-    for seq in range(N_EOF):
-        header = PACKET_HEADER.pack(b"K", N_EOF, seq)
-        data = header + digest
-        transport.sendto(data)
-        log_packet("Sent", data)
-        await sleeper.sleep()
+    # Mitigate missing EOF packets by sending the EOF chunk multiple times
+    eof_redundancy = max(MIN_EOF_CHUNKS, redundancy)
+    for r in range(eof_redundancy):
+        logging.debug(f"Send iteration {r + 1}/{eof_redundancy}")
+        sleeper = AsyncSleeper(N_EOF_PACKETS, chunk_duration)
+        for seq in range(N_EOF_PACKETS):
+            header = PACKET_HEADER.pack(b"K", N_EOF_PACKETS, seq)
+            data = header + digest
+            transport.sendto(data)
+            log_packet("Sent", data)
+            await sleeper.sleep()
 
 
 async def _send_chunk(chunk, color, redundancy, chunk_duration, transport):
@@ -227,9 +236,9 @@ async def send_data(
         allow_broadcast=True,
     )
 
-    # Mitigate early packet loss by sending the first chunk at least 5 times
+    # Mitigate early packet loss by sending the first chunk multiple times
     warmup = True
-    warmup_redundancy = max(5, redundancy)
+    warmup_redundancy = max(MIN_WARMUP_CHUNKS, redundancy)
 
     # Send data until a None chunk is encountered, indicating EOF
     while True:
@@ -237,7 +246,9 @@ async def send_data(
             chunk = chunks.pop(0)
             # There will never be more data
             if chunk is None:
-                await _send_eof(chunk_duration, transport, sha.digest())
+                await _send_eof(
+                    redundancy, chunk_duration, transport, sha.digest()
+                )
                 break
             # We have a chunk of data to send
             else:
