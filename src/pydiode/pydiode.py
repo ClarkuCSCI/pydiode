@@ -4,7 +4,13 @@ import logging
 import sys
 
 import pydiode.common
-from .common import BYTE, MAX_PAYLOAD, PACKET_HEADER, UDP_MAX_BYTES
+from .common import (
+    BYTE,
+    MAX_PAYLOAD,
+    PACKET_HEADER,
+    UDP_MAX_BYTES,
+    write_packet_details,
+)
 from .send import read_data, send_data
 from .receive import AsyncWriter, receive_data
 
@@ -30,6 +36,11 @@ async def async_main():
         action="store_const",
         dest="loglevel",
         const=logging.INFO,
+    )
+    parser.add_argument(
+        "--packet-details",
+        type=str,
+        help="Write packet details into the specified .csv",
     )
 
     send_parser = subparsers.add_parser("send", help="Send data")
@@ -121,11 +132,13 @@ async def async_main():
         try:
             # Queue of chunks to be sent
             chunks = []
+            packet_details = [] if args.packet_details else None
             # Read and send data concurrently
             await asyncio.gather(
                 read_data(chunks, chunk_max_data_bytes, args.chunk_duration),
                 send_data(
                     chunks,
+                    packet_details,
                     args.chunk_duration,
                     args.redundancy,
                     args.read_ip,
@@ -133,6 +146,8 @@ async def async_main():
                     args.port,
                 ),
             )
+            if args.packet_details:
+                write_packet_details(args.packet_details, packet_details)
         # Don't print the full stack trace for known error types
         except OSError as e:
             if str(e) in {
@@ -160,11 +175,15 @@ async def async_main():
             loop = asyncio.get_running_loop()
             exit_code = loop.create_future()
             queue = asyncio.Queue()
+            packet_details = [] if args.packet_details else None
             writer = AsyncWriter(queue, exit_code)
             await asyncio.gather(
-                receive_data(queue, args.read_ip, args.port), writer.write()
+                receive_data(queue, packet_details, args.read_ip, args.port),
+                writer.write(),
             )
             await exit_code
+            if args.packet_details:
+                write_packet_details(args.packet_details, packet_details)
             sys.exit(exit_code.result())
         # Don't print the full stack trace for known error types
         except OSError as e:

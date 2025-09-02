@@ -41,8 +41,9 @@ class AsyncWriter:
 
 
 class DiodeReceiveProtocol(asyncio.DatagramProtocol):
-    def __init__(self, queue, on_con_lost):
+    def __init__(self, queue, packet_details, on_con_lost):
         self.queue = queue
+        self.packet_details = packet_details
         self.on_con_lost = on_con_lost
         # Completed chunks
         self.completed = {b"R": False, b"B": False}
@@ -51,7 +52,11 @@ class DiodeReceiveProtocol(asyncio.DatagramProtocol):
 
     def datagram_received(self, data, addr):
         color, n_packets, seq = PACKET_HEADER.unpack(data[: PACKET_HEADER.size])
+
         log_packet("Received", data)
+        if color != b"K" and self.packet_details is not None:
+            self.packet_details.append(data)
+
         # If EOF (blacK) packet
         if color == b"K":
             # Put None to indicate the transfer is complete
@@ -77,18 +82,19 @@ class DiodeReceiveProtocol(asyncio.DatagramProtocol):
                 self.completed[other_color] = False
 
 
-async def receive_data(queue, read_ip, port):
+async def receive_data(queue, packet_details, read_ip, port):
     """
     Receive chunks over the network.
 
     :queue: Store received data onto this queue
+    :param packet_details: A list for packet data, or None
     :param read_ip: Listen for data on this IP address
     :param port: Listen for data on this port
     """
     loop = asyncio.get_running_loop()
     on_con_lost = loop.create_future()
     transport, protocol = await loop.create_datagram_endpoint(
-        lambda: DiodeReceiveProtocol(queue, on_con_lost),
+        lambda: DiodeReceiveProtocol(queue, packet_details, on_con_lost),
         local_addr=(read_ip, port),
     )
     try:

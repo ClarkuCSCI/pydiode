@@ -168,7 +168,9 @@ async def _send_eof(redundancy, chunk_duration, transport, digest):
             await sleeper.sleep()
 
 
-async def _send_chunk(chunk, color, redundancy, chunk_duration, transport):
+async def _send_chunk(
+    chunk, packet_details, color, redundancy, chunk_duration, transport
+):
     start = time.time()
     # Wrap the chunk bytes in a helper class
     c = Chunk(chunk)
@@ -186,6 +188,8 @@ async def _send_chunk(chunk, color, redundancy, chunk_duration, transport):
             data = header + payload
             transport.sendto(data)
             log_packet("Sent", data)
+            if packet_details is not None:
+                packet_details.append(data)
             # Sleep after "packet_burst" packets have been sent
             if ((seq + 1) % packet_burst) == 0:
                 await sleeper.sleep()
@@ -207,12 +211,13 @@ class DiodeSendProtocol(asyncio.DatagramProtocol):
 
 
 async def send_data(
-    chunks, chunk_duration, redundancy, read_ip, write_ip, port
+    chunks, packet_details, chunk_duration, redundancy, read_ip, write_ip, port
 ):
     """
     Send chunks over the network.
 
-    :param chunks: An array of bytes and bytearrays
+    :param chunks: A list for bytes and bytearrays
+    :param packet_details: A list for packet data, or None
     :param chunk_duration: Amount of time taken to send each chunk
     :param redundancy: How many times to transfer the data
     :param read_ip: Send data to this IP address
@@ -255,6 +260,7 @@ async def send_data(
                 sha.update(chunk)
                 await _send_chunk(
                     chunk,
+                    packet_details,
                     color,
                     redundancy if not warmup else warmup_redundancy,
                     chunk_duration,
