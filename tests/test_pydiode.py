@@ -61,6 +61,54 @@ class TestIO(unittest.TestCase):
         # Check whether the received data matches the sent data
         self.assertEqual(expected_hasher.hexdigest(), actual_hasher.hexdigest())
 
+    def test_packet_details(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            TX_DETAILS = os.path.join(tempdir, "tx.csv")
+            RX_DETAILS = os.path.join(tempdir, "rx.csv")
+            ANALYSIS = os.path.join(tempdir, "analysis.csv")
+            expected_hasher = hashlib.sha256()
+            expected_hasher.update(b"Hello\n")
+            # Send "Hello" through localhost
+            receive = subprocess.Popen(
+                f"pydiode --packet-details {RX_DETAILS} receive 127.0.0.1",
+                stdout=subprocess.PIPE,
+                shell=True,
+            )
+            send = subprocess.Popen(
+                (
+                    "echo Hello | "
+                    f"pydiode --packet-details {TX_DETAILS} "
+                    "send 127.0.0.1 127.0.0.1"
+                ),
+                shell=True,
+            )
+            send.communicate()
+            receive_stdout, _ = receive.communicate()
+            actual_hasher = hashlib.sha256()
+            actual_hasher.update(receive_stdout)
+            # Check whether the received data matches the sent data
+            self.assertEqual(
+                expected_hasher.hexdigest(), actual_hasher.hexdigest()
+            )
+            # Ensure the details .csv files exist
+            self.assertTrue(os.path.exists(TX_DETAILS))
+            self.assertTrue(os.path.exists(RX_DETAILS))
+            # Try analyzing rx.csv and tx.csv
+            analysis = subprocess.run(
+                [
+                    "python",
+                    "-m",
+                    "pydiode.analyze_details",
+                    TX_DETAILS,
+                    RX_DETAILS,
+                    ANALYSIS,
+                ],
+                capture_output=True,
+            )
+            self.assertEqual(analysis.stdout.decode(), "0.00% packet loss\n")
+            # Ensure the analysis .csv file exists
+            self.assertTrue(os.path.exists(ANALYSIS))
+
 
 class TestChunks(unittest.TestCase):
     def test_empty_chunks(self):
