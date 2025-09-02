@@ -216,7 +216,8 @@ async def send_data(
     """
     Send chunks over the network.
 
-    :param chunks: An array of bytes and bytearrays
+    :param chunks: A list for bytes and bytearrays
+    :param packet_details: A list for packet data, or None
     :param chunk_duration: Amount of time taken to send each chunk
     :param redundancy: How many times to transfer the data
     :param read_ip: Send data to this IP address

@@ -87,6 +87,7 @@ async def receive_data(queue, packet_details, read_ip, port):
     Receive chunks over the network.
 
     :queue: Store received data onto this queue
+    :param packet_details: A list for packet data, or None
     :param read_ip: Listen for data on this IP address
     :param port: Listen for data on this port
     """
