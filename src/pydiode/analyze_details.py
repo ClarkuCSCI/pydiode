@@ -57,6 +57,19 @@ def main():
                         n_tx_packets += 1
                     writer.writerow({"SentID": tx_row["ID"], "Received": 1})
                     logging.debug(f"Received sentID {tx_row['ID']}")
+                # If there were missing packets at the end of the transfer
+                for tx_row in tx_reader:
+                    writer.writerow({"SentID": tx_row["ID"], "Received": 0})
+                    logging.info(f"Did not receive sentID {tx_row['ID']}")
+                    n_tx_packets += 1
+
+    # Note: This logic depends on packets being received in order, which has
+    # been true in our testing. If packets could be received out of order,
+    # that wouldn't be a problem for pydiode. But for this script, it would
+    # manifest as a sequence of "missing packets" from one packet index until
+    # the end. This is because the out of order packet would be discarded,
+    # then the innermost loop would keep looking for a matching digest until
+    # tx_reader was exhausted.
 
     print("{:.2f}% packet loss".format((1 - n_rx_packets / n_tx_packets) * 100))
 
