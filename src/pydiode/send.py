@@ -16,7 +16,7 @@ MIN_WARMUP_CHUNKS = 5
 PACKET_BURST = 10
 
 # Number of EOF packets per EOF chunk
-N_EOF_PACKETS = 10
+N_EOF_PACKETS = 100
 # Send the EOF chunk at least this many times
 MIN_EOF_CHUNKS = 5
 
@@ -157,15 +157,24 @@ async def _send_eof(redundancy, chunk_duration, transport, digest):
     logging.debug(f"EOF's digest: {digest.hex()}")
     # Mitigate missing EOF packets by sending the EOF chunk multiple times
     eof_redundancy = max(MIN_EOF_CHUNKS, redundancy)
+    # Sleep after sending this many packets to avoid sending large bursts
+    packet_burst = min(N_EOF_PACKETS, PACKET_BURST)
     for r in range(eof_redundancy):
         logging.debug(f"Send iteration {r + 1}/{eof_redundancy}")
-        sleeper = AsyncSleeper(N_EOF_PACKETS, chunk_duration)
+        sleeper = AsyncSleeper(
+            math.ceil(N_EOF_PACKETS / packet_burst), chunk_duration
+        )
         for seq in range(N_EOF_PACKETS):
             header = PACKET_HEADER.pack(b"K", N_EOF_PACKETS, seq)
             data = header + digest
             transport.sendto(data)
             log_packet("Sent", data)
-            await sleeper.sleep()
+            # Sleep after "packet_burst" packets have been sent
+            if ((seq + 1) % packet_burst) == 0:
+                await sleeper.sleep()
+        # Sleep for any remaining time (i.e., if the number of packets isn't a
+        # multiple of packet_burst)
+        await sleeper.sleep_remainder()
 
 
 async def _send_chunk(
