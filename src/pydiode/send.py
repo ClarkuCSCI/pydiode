@@ -246,11 +246,25 @@ async def send_data(
     warmup_redundancy = max(MIN_WARMUP_CHUNKS, redundancy)
 
     # Send data until a None chunk is encountered, indicating EOF
+    prev_chunk = None
+    chunk = None
     while True:
         if len(chunks) > 0:
+            prev_chunk = chunk
             chunk = chunks.pop(0)
             # There will never be more data
             if chunk is None:
+                # Send the previous chunk again, to mitigate packet loss at
+                # the end of the transfer
+                await _send_chunk(
+                    prev_chunk,
+                    packet_details,
+                    b"B" if color == b"R" else b"R",  # The previous color
+                    1,  # Single-redundancy, since this chunk was already sent
+                    chunk_duration,
+                    transport,
+                )
+                # Send EOF packets
                 await _send_eof(
                     redundancy, chunk_duration, transport, sha.digest()
                 )
