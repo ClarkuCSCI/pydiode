@@ -22,8 +22,10 @@ class AsyncWriter:
             data = await self.queue.get()
             self.queue.task_done()
             if data is None:
-                eof_digest = await self.queue.get()
+                eof_payload = await self.queue.get()
                 received_digest = self.sha.digest()
+                # Strip payload padding, keeping only the digest
+                eof_digest = eof_payload[: len(received_digest)]
                 if received_digest == eof_digest:
                     self.exit_code.set_result(0)
                 else:
@@ -61,7 +63,7 @@ class DiodeReceiveProtocol(asyncio.DatagramProtocol):
         if color == b"K":
             # Put None to indicate the transfer is complete
             self.queue.put_nowait(None)
-            # Put the EOF's payload, a digest of the sent data
+            # Put the EOF's payload, containing a digest of the sent data
             self.queue.put_nowait(data[PACKET_HEADER.size :])
             self.on_con_lost.set_result(True)
         # Ignore White packets

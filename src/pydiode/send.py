@@ -171,6 +171,9 @@ class AsyncSleeper:
 
 async def _send_eof(redundancy, chunk_duration, transport, digest):
     logging.debug(f"EOF's digest: {digest.hex()}")
+    # Use a large payload to reduce packet loss. After the digest, the
+    # remainder of the packet is fully loaded with binary 0s.
+    payload = digest + bytes(MAX_PAYLOAD - len(digest))
     # Mitigate missing EOF packets by sending the EOF chunk multiple times
     eof_redundancy = max(MIN_EOF_CHUNKS, redundancy)
     for r in range(eof_redundancy):
@@ -178,7 +181,7 @@ async def _send_eof(redundancy, chunk_duration, transport, digest):
         sleeper = AsyncSleeper(N_EOF_PACKETS, chunk_duration)
         for seq in range(N_EOF_PACKETS):
             header = PACKET_HEADER.pack(b"K", N_EOF_PACKETS, seq)
-            data = header + digest
+            data = header + payload
             transport.sendto(data)
             log_packet("Sent", data)
             await sleeper.sleep()
