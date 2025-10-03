@@ -16,19 +16,29 @@ MIN_WARMUP_CHUNKS = 5
 PACKET_BURST = 10
 
 # Number of EOF packets per EOF chunk
-N_EOF_PACKETS = 10
+N_EOF_PACKETS = 100
 # Send the EOF chunk at least this many times
-MIN_EOF_CHUNKS = 5
+MIN_EOF_CHUNKS = 2
 
 
 class Chunk:
-    def __init__(self, data):
+    def __init__(self, data, color, chunk_max_packets):
         self.data = data
+        self.color = color
         self.n_packets = math.ceil(len(data) / MAX_PAYLOAD)
+        self.n_white_packets = chunk_max_packets - self.n_packets
+        # White packets are fully loaded with binary 0s
+        self.white_payload = bytes(MAX_PAYLOAD)
 
     def __iter__(self):
         for i in range(self.n_packets):
-            yield self.data[i * MAX_PAYLOAD : ((i + 1) * MAX_PAYLOAD)]
+            header = PACKET_HEADER.pack(self.color, self.n_packets, i)
+            yield header + self.data[i * MAX_PAYLOAD : ((i + 1) * MAX_PAYLOAD)]
+
+    def white_packets(self):
+        for i in range(self.n_white_packets):
+            header = PACKET_HEADER.pack(b"W", self.n_white_packets, i)
+            yield header + self.white_payload
 
 
 class AsyncReader:
@@ -96,61 +106,67 @@ def append_to_chunks(chunks, data, chunk_max_data_bytes):
             chunks.append(bytearray(data[remaining_space:]))
 
 
-async def read_data(chunks, chunk_max_data_bytes, chunk_duration):
+async def read_data(chunks, chunk_config):
     """
     Read data from STDIN, and store it into the chunks queue.
 
     :param chunks: An array of bytes and bytearrays
-    :param chunk_max_data_bytes: The maximum number of bytes stored in a chunk
-    :param chunk_duration: Amount of time taken to send each chunk
+    :param chunk_config: Contains the maximum number of bytes stored in a chunk
+                         and the amount of time needed to send each chunk
     """
-    reader = AsyncReader(chunk_max_data_bytes)
+    reader = AsyncReader(chunk_config.chunk_max_data_bytes)
     data = await reader.read()
     # Until EOF is encountered
     while data:
         logging.debug(f"Read {len(data)} bytes of data")
-        append_to_chunks(chunks, data, chunk_max_data_bytes)
+        append_to_chunks(chunks, data, chunk_config.chunk_max_data_bytes)
         while len(chunks) > 3:
             # At least the first and second chunks will be full.
             # Wait for chunks to be sent.
-            await asyncio.sleep(chunk_duration)
+            await asyncio.sleep(chunk_config.chunk_duration)
         data = await reader.read()
     # Signal there won't be more data
     chunks.append(None)
 
 
 class AsyncSleeper:
-    def __init__(self, n_sleeps, duration):
-        # The number of sleeps we've performed so far
-        self.n = 0
-        # We will eventually sleep this many times
-        self.n_sleeps = n_sleeps
+    def __init__(self, n_packets, duration):
+        # The sleep method will be called once for each packet
+        self.n_packets = n_packets
+        # We actually sleep every PACKET_BURST packets
+        self.n_sleeps = math.ceil(n_packets / PACKET_BURST)
+        # The number of times the sleep method has been called so far
+        self.p = 0
+        # The number of actual sleeps we've performed so far
+        self.s = 0
         # Eventually, this much time should pass
         self.duration = duration
         self.start = time.time()
 
     async def sleep(self):
-        self.n += 1
-        if self.n > self.n_sleeps:
-            raise IndexError(f"Already slept {self.n_sleeps} times")
-        # How much time should elapse from start by the end of this sleep?
-        target_elapsed = (self.n / self.n_sleeps) * self.duration
-        already_elapsed = time.time() - self.start
-        sleep_duration = target_elapsed - already_elapsed
-        logging.debug(f"Sleeping {sleep_duration:.5f} seconds")
-        await asyncio.sleep(sleep_duration)
+        self.p += 1
+        if (self.p % PACKET_BURST) == 0:
+            self.s += 1
+            if self.s > self.n_sleeps:
+                raise IndexError(f"Already slept {self.n_sleeps} times")
+            # How much time should elapse from start by the end of this sleep?
+            target_elapsed = (self.s / self.n_sleeps) * self.duration
+            already_elapsed = time.time() - self.start
+            sleep_duration = target_elapsed - already_elapsed
+            logging.debug(f"Sleeping {sleep_duration:.5f} seconds")
+            await asyncio.sleep(sleep_duration)
 
     async def sleep_remainder(self):
         # If we haven't yet slept for the specified number of times, we will
         # perform one big sleep to fill the remaining time
-        if self.n < self.n_sleeps:
+        if self.s < self.n_sleeps:
             # How much time should elapse from start by the end of this sleep?
             already_elapsed = time.time() - self.start
             sleep_duration = self.duration - already_elapsed
             logging.debug(f"Sleeping remaining {sleep_duration:.5f} seconds")
             await asyncio.sleep(sleep_duration)
             # Record that we have met our "sleep quota"
-            self.n = self.n_sleeps
+            self.s = self.n_sleeps
 
 
 async def _send_eof(redundancy, chunk_duration, transport, digest):
@@ -169,32 +185,43 @@ async def _send_eof(redundancy, chunk_duration, transport, digest):
 
 
 async def _send_chunk(
-    chunk, packet_details, color, redundancy, chunk_duration, transport
+    chunk,
+    packet_details,
+    color,
+    redundancy,
+    chunk_config,
+    transport,
 ):
+    """
+    Send packets containing all the data in the chunk, possibly followed by
+    fully loaded white packets until the target number of packets is sent.
+    """
     start = time.time()
     # Wrap the chunk bytes in a helper class
-    c = Chunk(chunk)
-    # Sleep after sending this many packets to avoid sending large bursts
-    packet_burst = min(c.n_packets, PACKET_BURST)
+    c = Chunk(chunk, color, chunk_config.chunk_max_packets)
     # Send the data over the network
     logging.debug(f"{c.n_packets} packets needed to send {color} chunk")
+    if c.n_white_packets:
+        logging.debug(f"Padding with {c.n_white_packets} white packets")
     for r in range(redundancy):
         sleeper = AsyncSleeper(
-            math.ceil(c.n_packets / packet_burst), chunk_duration
+            chunk_config.chunk_max_packets, chunk_config.chunk_duration
         )
         logging.debug(f"Send iteration {r + 1}/{redundancy}")
-        for seq, payload in enumerate(c):
-            header = PACKET_HEADER.pack(color, c.n_packets, seq)
-            data = header + payload
+        # Send Red or Blue packets
+        for data in c:
             transport.sendto(data)
             log_packet("Sent", data)
             if packet_details is not None:
                 packet_details.append(data)
-            # Sleep after "packet_burst" packets have been sent
-            if ((seq + 1) % packet_burst) == 0:
-                await sleeper.sleep()
+            await sleeper.sleep()
+        # Send White packets
+        for data in c.white_packets():
+            transport.sendto(data)
+            log_packet("Sent", data)
+            await sleeper.sleep()
         # Sleep for any remaining time (i.e., if the number of packets isn't a
-        # multiple of packet_burst)
+        # multiple of PACKET_BURST)
         await sleeper.sleep_remainder()
     logging.debug(
         f"Sent {color} chunk of length {len(chunk)} "
@@ -211,14 +238,15 @@ class DiodeSendProtocol(asyncio.DatagramProtocol):
 
 
 async def send_data(
-    chunks, packet_details, chunk_duration, redundancy, read_ip, write_ip, port
+    chunks, packet_details, chunk_config, redundancy, read_ip, write_ip, port
 ):
     """
     Send chunks over the network.
 
     :param chunks: A list for bytes and bytearrays
     :param packet_details: A list for packet data, or None
-    :param chunk_duration: Amount of time taken to send each chunk
+    :param chunk_config: Contains the amount of time needed to send each chunk
+                         as well as the maximum number of packets per chunk
     :param redundancy: How many times to transfer the data
     :param read_ip: Send data to this IP address
     :param write_ip: Send data from this IP address
@@ -252,7 +280,10 @@ async def send_data(
             # There will never be more data
             if chunk is None:
                 await _send_eof(
-                    redundancy, chunk_duration, transport, sha.digest()
+                    redundancy,
+                    chunk_config.chunk_duration,
+                    transport,
+                    sha.digest(),
                 )
                 break
             # We have a chunk of data to send
@@ -263,15 +294,22 @@ async def send_data(
                     packet_details,
                     color,
                     redundancy if not warmup else warmup_redundancy,
-                    chunk_duration,
+                    chunk_config,
                     transport,
                 )
                 warmup = False
                 # Switch the color
                 color = b"B" if color == b"R" else b"R"
-        # Wait for more data
+        # Send a chunk of white packets while we wait for more data
         else:
-            await asyncio.sleep(chunk_duration)
+            await _send_chunk(
+                b"",  # We don't have any real data to send
+                packet_details,
+                b"W",
+                1,  # Single redundancy for greater responsiveness
+                chunk_config,
+                transport,
+            )
 
     # Close the UDP "connection"
     transport.close()

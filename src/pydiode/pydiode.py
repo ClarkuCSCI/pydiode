@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import logging
+import math
 import sys
 
 import pydiode.common
@@ -13,6 +14,42 @@ from .common import (
 )
 from .send import read_data, send_data
 from .receive import AsyncWriter, receive_data
+
+
+class ChunkConfig:
+    """
+    Calculates and stores:
+    - chunk_max_packets
+    - chunk_duration
+    - chunk_max_data_bytes
+
+    Note: We don't account for UDP and IPv4 headers, so our actual maximum
+    bitrate could be slightly higher than our target.
+    """
+
+    def __init__(self, chunk_max_packets, chunk_duration, max_bitrate):
+        """
+        max_bitrate is required, and either chunk_max_packets or
+        chunk_duration should be non-null.
+        """
+        # Calculate chunk_duration based on chunk_max_packets
+        if chunk_max_packets:
+            # How many seconds do we need to send this many fully loaded
+            # packets without exceeding max_bitrate?
+            self.chunk_max_packets = chunk_max_packets
+            self.chunk_duration = (
+                chunk_max_packets * UDP_MAX_BYTES * BYTE / max_bitrate
+            )
+        # Calculate chunk_max_packets based on chunk_duration
+        else:
+            # How many fully loaded packets can be sent per second without
+            # exceeding max_bitrate?
+            self.chunk_duration = chunk_duration
+            self.chunk_max_packets = math.floor(
+                chunk_duration * max_bitrate / BYTE / UDP_MAX_BYTES
+            )
+        # How much data will fit in this chunk?
+        self.chunk_max_data_bytes = int(self.chunk_max_packets * MAX_PAYLOAD)
 
 
 async def async_main():
@@ -106,28 +143,14 @@ async def async_main():
         elif not args.chunk_duration and not args.chunk_max_packets:
             args.chunk_max_packets = 100
 
-        # Calculate chunk_duration based on chunk_max_packets, or vice versa
-        if args.chunk_max_packets:
-            # How many seconds do we need to send this many fully loaded
-            # packets without exceeding max_bitrate?
-            args.chunk_duration = (
-                args.chunk_max_packets * UDP_MAX_BYTES * BYTE / args.max_bitrate
-            )
-        else:
-            # How many fully loaded packets can be sent per second without
-            # exceeding max_bitrate?
-            # TODO Consider whether to account for UDP and IPv4 headers.
-            args.chunk_max_packets = (
-                args.chunk_duration * args.max_bitrate / BYTE / UDP_MAX_BYTES
-            )
-        logging.debug(f"chunk_max_packets={args.chunk_max_packets}")
-        logging.debug(f"chunk_duration={args.chunk_duration}")
-
-        # How much data will fit in these packets?
-        chunk_max_data_bytes = int(args.chunk_max_packets * MAX_PAYLOAD)
+        cc = ChunkConfig(
+            args.chunk_max_packets, args.chunk_duration, args.max_bitrate
+        )
+        logging.debug(f"chunk_max_packets={cc.chunk_max_packets}")
+        logging.debug(f"chunk_duration={cc.chunk_duration}")
         logging.debug(f"PACKET_HEADER.size={PACKET_HEADER.size}")
         logging.debug(f"MAX_PAYLOAD={MAX_PAYLOAD}")
-        logging.debug(f"chunk_max_data_bytes={chunk_max_data_bytes}")
+        logging.debug(f"chunk_max_data_bytes={cc.chunk_max_data_bytes}")
 
         try:
             # Queue of chunks to be sent
@@ -135,11 +158,11 @@ async def async_main():
             packet_details = [] if args.packet_details else None
             # Read and send data concurrently
             await asyncio.gather(
-                read_data(chunks, chunk_max_data_bytes, args.chunk_duration),
+                read_data(chunks, cc),
                 send_data(
                     chunks,
                     packet_details,
-                    args.chunk_duration,
+                    cc,
                     args.redundancy,
                     args.read_ip,
                     args.write_ip,

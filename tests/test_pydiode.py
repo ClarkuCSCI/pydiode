@@ -61,6 +61,29 @@ class TestIO(unittest.TestCase):
         # Check whether the received data matches the sent data
         self.assertEqual(expected_hasher.hexdigest(), actual_hasher.hexdigest())
 
+    def test_diode_pipe_io_chunk_duration(self):
+        expected_hasher = hashlib.sha256()
+        expected_hasher.update(b"Hello\n")
+        # Send "Hello" through localhost
+        receive = subprocess.Popen(
+            f"pydiode receive 127.0.0.1",
+            stdout=subprocess.PIPE,
+            shell=True,
+        )
+        send = subprocess.Popen(
+            (
+                "echo Hello | "
+                "pydiode send --chunk-duration 0.01 127.0.0.1 127.0.0.1"
+            ),
+            shell=True,
+        )
+        send.communicate()
+        receive_stdout, _ = receive.communicate()
+        actual_hasher = hashlib.sha256()
+        actual_hasher.update(receive_stdout)
+        # Check whether the received data matches the sent data
+        self.assertEqual(expected_hasher.hexdigest(), actual_hasher.hexdigest())
+
     def test_packet_details(self):
         with tempfile.TemporaryDirectory() as tempdir:
             TX_DETAILS = os.path.join(tempdir, "tx.csv")
@@ -105,7 +128,10 @@ class TestIO(unittest.TestCase):
                 ],
                 capture_output=True,
             )
-            self.assertEqual(analysis.stdout.decode(), "0.00% packet loss\n")
+            self.assertEqual(
+                analysis.stdout.decode(),
+                "0.00% packet loss\n0 unordered packets\n",
+            )
             # Ensure the analysis .csv file exists
             self.assertTrue(os.path.exists(ANALYSIS))
 
