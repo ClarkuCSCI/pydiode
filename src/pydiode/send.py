@@ -15,30 +15,32 @@ MIN_WARMUP_CHUNKS = 5
 # Sleep after sending this many packets
 PACKET_BURST = 10
 
-# Number of EOF packets per EOF chunk
-N_EOF_PACKETS = 100
 # Send the EOF chunk at least this many times
 MIN_EOF_CHUNKS = 2
 
 
 class Chunk:
+    """
+    Generate packets for this chunk. All packets are fully loaded, with some
+    including padding. If the supplied data doesn't completely fill the chunk,
+    then the iterator will repeat packets for redundancy.
+    """
+
     def __init__(self, data, color, chunk_max_packets):
         self.data = data
         self.color = color
         self.n_packets = math.ceil(len(data) / MAX_PAYLOAD)
-        self.n_white_packets = chunk_max_packets - self.n_packets
-        # White packets are fully loaded with binary 0s
-        self.white_payload = bytes(MAX_PAYLOAD)
+        self.chunk_max_packets = chunk_max_packets
 
     def __iter__(self):
-        for i in range(self.n_packets):
-            header = PACKET_HEADER.pack(self.color, self.n_packets, i)
-            yield header + self.data[i * MAX_PAYLOAD : ((i + 1) * MAX_PAYLOAD)]
-
-    def white_packets(self):
-        for i in range(self.n_white_packets):
-            header = PACKET_HEADER.pack(b"W", self.n_white_packets, i)
-            yield header + self.white_payload
+        for p in range(self.chunk_max_packets):
+            i = p % self.n_packets
+            payload = self.data[i * MAX_PAYLOAD : ((i + 1) * MAX_PAYLOAD)]
+            padding = bytes(MAX_PAYLOAD - len(payload))
+            header = PACKET_HEADER.pack(
+                self.color, self.n_packets, i, len(payload)
+            )
+            yield header + payload + padding
 
 
 class AsyncReader:
@@ -169,24 +171,6 @@ class AsyncSleeper:
             self.s = self.n_sleeps
 
 
-async def _send_eof(redundancy, chunk_duration, transport, digest):
-    logging.debug(f"EOF's digest: {digest.hex()}")
-    # Use a large payload to reduce packet loss. After the digest, the
-    # remainder of the packet is fully loaded with binary 0s.
-    payload = digest + bytes(MAX_PAYLOAD - len(digest))
-    # Mitigate missing EOF packets by sending the EOF chunk multiple times
-    eof_redundancy = max(MIN_EOF_CHUNKS, redundancy)
-    for r in range(eof_redundancy):
-        logging.debug(f"Send iteration {r + 1}/{eof_redundancy}")
-        sleeper = AsyncSleeper(N_EOF_PACKETS, chunk_duration)
-        for seq in range(N_EOF_PACKETS):
-            header = PACKET_HEADER.pack(b"K", N_EOF_PACKETS, seq)
-            data = header + payload
-            transport.sendto(data)
-            log_packet("Sent", data)
-            await sleeper.sleep()
-
-
 async def _send_chunk(
     chunk,
     packet_details,
@@ -196,32 +180,24 @@ async def _send_chunk(
     transport,
 ):
     """
-    Send packets containing all the data in the chunk, possibly followed by
-    fully loaded white packets until the target number of packets is sent.
+    Send packets containing all the data in the chunk, possibly redundantly
+    until the target number of packets is sent.
     """
     start = time.time()
     # Wrap the chunk bytes in a helper class
     c = Chunk(chunk, color, chunk_config.chunk_max_packets)
     # Send the data over the network
     logging.debug(f"{c.n_packets} packets needed to send {color} chunk")
-    if c.n_white_packets:
-        logging.debug(f"Padding with {c.n_white_packets} white packets")
     for r in range(redundancy):
         sleeper = AsyncSleeper(
             chunk_config.chunk_max_packets, chunk_config.chunk_duration
         )
         logging.debug(f"Send iteration {r + 1}/{redundancy}")
-        # Send Red or Blue packets
         for data in c:
             transport.sendto(data)
             log_packet("Sent", data)
-            if packet_details is not None:
+            if (color == b"R" or color == b"B") and packet_details is not None:
                 packet_details.append(data)
-            await sleeper.sleep()
-        # Send White packets
-        for data in c.white_packets():
-            transport.sendto(data)
-            log_packet("Sent", data)
             await sleeper.sleep()
         # Sleep for any remaining time (i.e., if the number of packets isn't a
         # multiple of PACKET_BURST)
@@ -277,16 +253,22 @@ async def send_data(
     warmup_redundancy = max(MIN_WARMUP_CHUNKS, redundancy)
 
     # Send data until a None chunk is encountered, indicating EOF
+    prev_chunk = None
     while True:
         if len(chunks) > 0:
             chunk = chunks.pop(0)
+            prev_chunk = chunk
             # There will never be more data
             if chunk is None:
-                await _send_eof(
-                    redundancy,
-                    chunk_config.chunk_duration,
+                digest = sha.digest()
+                logging.debug(f"EOF's digest: {digest.hex()}")
+                await _send_chunk(
+                    digest,
+                    packet_details,
+                    b"K",
+                    max(MIN_EOF_CHUNKS, redundancy),
+                    chunk_config,
                     transport,
-                    sha.digest(),
                 )
                 break
             # We have a chunk of data to send
@@ -303,16 +285,19 @@ async def send_data(
                 warmup = False
                 # Switch the color
                 color = b"B" if color == b"R" else b"R"
-        # Send a chunk of white packets while we wait for more data
-        else:
+        # Resend the previous chunk while we wait for more data
+        elif prev_chunk:
             await _send_chunk(
-                b"",  # We don't have any real data to send
+                prev_chunk,
                 packet_details,
-                b"W",
+                b"B" if color == b"R" else b"R",  # Previous color
                 1,  # Single redundancy for greater responsiveness
                 chunk_config,
                 transport,
             )
+        # Wait for data
+        else:
+            await asyncio.sleep(chunk_config.chunk_duration)
 
     # Close the UDP "connection"
     transport.close()

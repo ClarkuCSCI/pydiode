@@ -22,10 +22,8 @@ class AsyncWriter:
             data = await self.queue.get()
             self.queue.task_done()
             if data is None:
-                eof_payload = await self.queue.get()
+                eof_digest = await self.queue.get()
                 received_digest = self.sha.digest()
-                # Strip payload padding, keeping only the digest
-                eof_digest = eof_payload[: len(received_digest)]
                 if received_digest == eof_digest:
                     self.exit_code.set_result(0)
                 else:
@@ -53,7 +51,10 @@ class DiodeReceiveProtocol(asyncio.DatagramProtocol):
         self.packets = {b"R": {}, b"B": {}}
 
     def datagram_received(self, data, addr):
-        color, n_packets, seq = PACKET_HEADER.unpack(data[: PACKET_HEADER.size])
+        color, n_packets, seq, len_payload = PACKET_HEADER.unpack(
+            data[: PACKET_HEADER.size]
+        )
+        payload = data[PACKET_HEADER.size : PACKET_HEADER.size + len_payload]
 
         log_packet("Received", data)
         if (color == b"R" or color == b"B") and self.packet_details is not None:
@@ -63,16 +64,13 @@ class DiodeReceiveProtocol(asyncio.DatagramProtocol):
         if color == b"K":
             # Put None to indicate the transfer is complete
             self.queue.put_nowait(None)
-            # Put the EOF's payload, containing a digest of the sent data
-            self.queue.put_nowait(data[PACKET_HEADER.size :])
+            # Put the EOF's payload, a digest of the sent data
+            self.queue.put_nowait(payload)
             self.on_con_lost.set_result(True)
-        # Ignore White packets
-        elif color == b"W":
-            pass
         # Is this packet for an incomplete chunk?
         elif not self.completed[color]:
             # Record the payload
-            self.packets[color][seq] = data[PACKET_HEADER.size :]
+            self.packets[color][seq] = payload
             # Did we complete the chunk?
             if len(self.packets[color]) == n_packets:
                 logging.debug(f"Packet completed the {color} chunk")

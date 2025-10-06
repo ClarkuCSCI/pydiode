@@ -19,8 +19,9 @@ BYTE = 8
 # Color, represented as a character: Red, Blue, and blacK (1 byte).
 # Number of packets, represented as an unsigned short (2 bytes)
 # Sequence number, represented as an unsigned short (2 bytes)
+# Payload length, represented as an unsigned short (2 bytes)
 # The payload, represented as an array of bytes
-PACKET_HEADER = struct.Struct("<cHH")
+PACKET_HEADER = struct.Struct("<cHHH")
 
 # Maximum payload length
 MAX_PAYLOAD = UDP_MAX_BYTES - PACKET_HEADER.size
@@ -32,11 +33,12 @@ LOG_PACKETS = False
 
 def log_packet(prefix, data):
     if LOG_PACKETS:
-        color, n_packets, seq = PACKET_HEADER.unpack(data[: PACKET_HEADER.size])
-        payload_length = len(data) - PACKET_HEADER.size
+        color, n_packets, seq, len_payload = PACKET_HEADER.unpack(
+            data[: PACKET_HEADER.size]
+        )
         logging.debug(
             f"{prefix} <Packet color={color} n_packets={n_packets} "
-            f"seq={seq} payload_length={payload_length}>"
+            f"seq={seq} len_payload={len_payload}>"
         )
 
 
