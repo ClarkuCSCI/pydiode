@@ -67,6 +67,9 @@ class DiodeReceiveProtocol(asyncio.DatagramProtocol):
             # Put the EOF's payload, a digest of the sent data
             self.queue.put_nowait(data[PACKET_HEADER.size : payload_end])
             self.on_con_lost.set_result(True)
+        # Ignore white packets
+        elif color == b"W":
+            pass
         # Is this packet for an incomplete chunk?
         elif not self.completed[color]:
             # Record the payload
