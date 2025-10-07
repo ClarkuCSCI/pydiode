@@ -54,7 +54,7 @@ class DiodeReceiveProtocol(asyncio.DatagramProtocol):
         color, n_packets, seq, len_payload = PACKET_HEADER.unpack(
             data[: PACKET_HEADER.size]
         )
-        payload = data[PACKET_HEADER.size : PACKET_HEADER.size + len_payload]
+        payload_end = PACKET_HEADER.size + len_payload
 
         log_packet("Received", data)
         if (color == b"R" or color == b"B") and self.packet_details is not None:
@@ -65,12 +65,12 @@ class DiodeReceiveProtocol(asyncio.DatagramProtocol):
             # Put None to indicate the transfer is complete
             self.queue.put_nowait(None)
             # Put the EOF's payload, a digest of the sent data
-            self.queue.put_nowait(payload)
+            self.queue.put_nowait(data[PACKET_HEADER.size : payload_end])
             self.on_con_lost.set_result(True)
         # Is this packet for an incomplete chunk?
         elif not self.completed[color]:
             # Record the payload
-            self.packets[color][seq] = payload
+            self.packets[color][seq] = data[PACKET_HEADER.size : payload_end]
             # Did we complete the chunk?
             if len(self.packets[color]) == n_packets:
                 logging.debug(f"Packet completed the {color} chunk")
