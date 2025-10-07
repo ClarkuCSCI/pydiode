@@ -288,6 +288,7 @@ async def send_data(
                 color = b"B" if color == b"R" else b"R"
         # Resend the previous chunk while we wait for more data
         elif prev_chunk:
+            logging.debug("Resending previous chunk while waiting for data")
             await _send_chunk(
                 prev_chunk,
                 packet_details,
@@ -298,6 +299,7 @@ async def send_data(
             )
         # Wait for data
         else:
+            logging.debug("Waiting for data")
             await asyncio.sleep(chunk_config.chunk_duration)
 
     # Close the UDP "connection"
