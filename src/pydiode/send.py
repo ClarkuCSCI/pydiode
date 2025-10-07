@@ -9,7 +9,8 @@ import time
 
 from .common import log_packet, MAX_PAYLOAD, PACKET_HEADER
 
-# Send the first chunk at least this many times
+# Send the first chunk at least this many times.
+# We have observed elevated packet loss into packet index ~330.
 MIN_WARMUP_CHUNKS = 5
 
 # Sleep after sending this many packets
@@ -250,7 +251,7 @@ async def send_data(
 
     # Mitigate early packet loss by sending the first chunk multiple times
     warmup = True
-    warmup_redundancy = max(MIN_WARMUP_CHUNKS, redundancy)
+    warmup_redundancy = MIN_WARMUP_CHUNKS + redundancy - 1
 
     # Send data until a None chunk is encountered, indicating EOF
     prev_chunk = None
