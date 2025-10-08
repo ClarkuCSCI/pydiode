@@ -40,7 +40,7 @@ class AsyncWriter:
                 )
             # Give DiodeReceiveProtocol a chance to run before writing out the
             # next chunk
-            asyncio.sleep(0)
+            await asyncio.sleep(0)
 
 
 class DiodeReceiveProtocol(asyncio.DatagramProtocol):
