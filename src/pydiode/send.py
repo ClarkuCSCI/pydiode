@@ -156,10 +156,8 @@ class AsyncSleeper:
             target_elapsed = (self.s / self.n_sleeps) * self.duration
             already_elapsed = time.time() - self.start
             sleep_duration = target_elapsed - already_elapsed
-            # Don't let the reader interrupt us if we are running behind
-            if sleep_duration > 0:
-                logging.debug(f"Sleeping {sleep_duration:.5f} seconds")
-                await asyncio.sleep(sleep_duration)
+            logging.debug(f"Sleeping {sleep_duration:.5f} seconds")
+            await asyncio.sleep(sleep_duration)
 
     async def sleep_remainder(self):
         # If we haven't yet slept for the specified number of times, we will
@@ -168,12 +166,8 @@ class AsyncSleeper:
             # How much time should elapse from start by the end of this sleep?
             already_elapsed = time.time() - self.start
             sleep_duration = self.duration - already_elapsed
-            # Don't let the reader interrupt us if we are running behind
-            if sleep_duration > 0:
-                logging.debug(
-                    f"Sleeping remaining {sleep_duration:.5f} seconds"
-                )
-                await asyncio.sleep(sleep_duration)
+            logging.debug(f"Sleeping remaining {sleep_duration:.5f} seconds")
+            await asyncio.sleep(sleep_duration)
             # Record that we have met our "sleep quota"
             self.s = self.n_sleeps
 
@@ -262,8 +256,6 @@ async def send_data(
     # Send data until a None chunk is encountered, indicating EOF
     prev_chunk = None
     while True:
-        # Give the reader a chance to read chunks
-        await asyncio.sleep(0)
         if len(chunks) > 0:
             chunk = chunks.pop(0)
             prev_chunk = chunk
