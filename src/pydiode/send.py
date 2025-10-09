@@ -297,17 +297,10 @@ async def send_data(
                 chunk_config,
                 transport,
             )
-        # Send a chunk of white packets while we wait for data
+        # Wait for data
         else:
-            logging.debug("Sending white chunk while waiting for data")
-            await _send_chunk(
-                bytes(1),
-                packet_details,
-                b"W",  # Previous color
-                1,  # Single redundancy for greater responsiveness
-                chunk_config,
-                transport,
-            )
+            logging.debug("Waiting for data")
+            await asyncio.sleep(chunk_config.chunk_duration)
 
     # Close the UDP "connection"
     transport.close()
