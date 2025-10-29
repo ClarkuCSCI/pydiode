@@ -273,7 +273,7 @@ async def send_data(
                     digest,
                     packet_details,
                     b"K",
-                    max(MIN_EOF_CHUNKS, redundancy),
+                    MIN_EOF_CHUNKS + redundancy - 1,
                     chunk_duration,
                     chunk_max_packets,
                     transport,
