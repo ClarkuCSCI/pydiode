@@ -109,24 +109,24 @@ def append_to_chunks(chunks, data, chunk_max_data_bytes):
             chunks.append(bytearray(data[remaining_space:]))
 
 
-async def read_data(chunks, chunk_config):
+async def read_data(chunks, chunk_max_data_bytes, chunk_duration):
     """
     Read data from STDIN, and store it into the chunks queue.
 
     :param chunks: An array of bytes and bytearrays
-    :param chunk_config: Contains the maximum number of bytes stored in a chunk
-                         and the amount of time needed to send each chunk
+    :param chunk_max_data_bytes: The maximum number of bytes stored in a chunk
+    :param chunk_duration: Amount of time needed to send each chunk
     """
-    reader = AsyncReader(chunk_config.chunk_max_data_bytes)
+    reader = AsyncReader(chunk_max_data_bytes)
     data = await reader.read()
     # Until EOF is encountered
     while data:
         logging.debug(f"Read {len(data)} bytes of data")
-        append_to_chunks(chunks, data, chunk_config.chunk_max_data_bytes)
+        append_to_chunks(chunks, data, chunk_max_data_bytes)
         while len(chunks) > 3:
             # At least the first and second chunks will be full.
             # Wait for chunks to be sent.
-            await asyncio.sleep(chunk_config.chunk_duration)
+            await asyncio.sleep(chunk_duration)
         data = await reader.read()
     # Signal there won't be more data
     chunks.append(None)
@@ -177,7 +177,8 @@ async def _send_chunk(
     packet_details,
     color,
     redundancy,
-    chunk_config,
+    chunk_duration,
+    chunk_max_packets,
     transport,
 ):
     """
@@ -186,13 +187,11 @@ async def _send_chunk(
     """
     start = time.time()
     # Wrap the chunk bytes in a helper class
-    c = Chunk(chunk, color, chunk_config.chunk_max_packets)
+    c = Chunk(chunk, color, chunk_max_packets)
     # Send the data over the network
     logging.debug(f"{c.n_packets} packets needed to send {color} chunk")
     for r in range(redundancy):
-        sleeper = AsyncSleeper(
-            chunk_config.chunk_max_packets, chunk_config.chunk_duration
-        )
+        sleeper = AsyncSleeper(chunk_max_packets, chunk_duration)
         logging.debug(f"Send iteration {r + 1}/{redundancy}")
         for data in c:
             transport.sendto(data)
@@ -218,15 +217,22 @@ class DiodeSendProtocol(asyncio.DatagramProtocol):
 
 
 async def send_data(
-    chunks, packet_details, chunk_config, redundancy, read_ip, write_ip, port
+    chunks,
+    packet_details,
+    chunk_duration,
+    chunk_max_packets,
+    redundancy,
+    read_ip,
+    write_ip,
+    port,
 ):
     """
     Send chunks over the network.
 
     :param chunks: A list for bytes and bytearrays
     :param packet_details: A list for packet data, or None
-    :param chunk_config: Contains the amount of time needed to send each chunk
-                         as well as the maximum number of packets per chunk
+    :param chunk_duration: Amount of time needed to send each chunk
+    :param chunk_max_packets: Maximum number of packets per chunk
     :param redundancy: How many times to transfer the data
     :param read_ip: Send data to this IP address
     :param write_ip: Send data from this IP address
@@ -268,7 +274,8 @@ async def send_data(
                     packet_details,
                     b"K",
                     max(MIN_EOF_CHUNKS, redundancy),
-                    chunk_config,
+                    chunk_duration,
+                    chunk_max_packets,
                     transport,
                 )
                 break
@@ -280,7 +287,8 @@ async def send_data(
                     packet_details,
                     color,
                     redundancy if not warmup else warmup_redundancy,
-                    chunk_config,
+                    chunk_duration,
+                    chunk_max_packets,
                     transport,
                 )
                 warmup = False
@@ -294,13 +302,14 @@ async def send_data(
                 packet_details,
                 b"B" if color == b"R" else b"R",  # Previous color
                 1,  # Single redundancy for greater responsiveness
-                chunk_config,
+                chunk_duration,
+                chunk_max_packets,
                 transport,
             )
         # Wait for data
         else:
             logging.debug("Waiting for data")
-            await asyncio.sleep(chunk_config.chunk_duration)
+            await asyncio.sleep(chunk_duration)
 
     # Close the UDP "connection"
     transport.close()

@@ -158,11 +158,12 @@ async def async_main():
             packet_details = [] if args.packet_details else None
             # Read and send data concurrently
             await asyncio.gather(
-                read_data(chunks, cc),
+                read_data(chunks, cc.chunk_max_data_bytes, cc.chunk_duration),
                 send_data(
                     chunks,
                     packet_details,
-                    cc,
+                    cc.chunk_duration,
+                    cc.chunk_max_packets,
                     args.redundancy,
                     args.read_ip,
                     args.write_ip,
