@@ -1,7 +1,6 @@
 import argparse
 import asyncio
 import logging
-import math
 import sys
 
 import pydiode.common
@@ -45,11 +44,11 @@ class ChunkConfig:
             # How many fully loaded packets can be sent per second without
             # exceeding max_bitrate?
             self.chunk_duration = chunk_duration
-            self.chunk_max_packets = math.floor(
+            self.chunk_max_packets = int(
                 chunk_duration * max_bitrate / BYTE / UDP_MAX_BYTES
             )
         # How much data will fit in this chunk?
-        self.chunk_max_data_bytes = int(self.chunk_max_packets * MAX_PAYLOAD)
+        self.chunk_max_data_bytes = self.chunk_max_packets * MAX_PAYLOAD
 
 
 async def async_main():
