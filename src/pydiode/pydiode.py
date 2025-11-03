@@ -200,10 +200,9 @@ async def async_main():
             queue = asyncio.Queue()
             packet_details = [] if args.packet_details else None
             writer = AsyncWriter(queue, exit_code)
-            await asyncio.gather(
-                receive_data(queue, packet_details, args.read_ip, args.port),
-                writer.write(),
-            )
+            # DEBUG See what happens if we defer writes until the end
+            await receive_data(queue, packet_details, args.read_ip, args.port)
+            await writer.write()
             await exit_code
             if args.packet_details:
                 write_packet_details(args.packet_details, packet_details)
