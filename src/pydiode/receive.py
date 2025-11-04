@@ -34,7 +34,9 @@ class AsyncWriter:
                     self.exit_code.set_result(1)
                 break
             else:
-                self.sha.update(data)
+                await asyncio.get_event_loop().run_in_executor(
+                    None, self.sha.update, data
+                )
                 await asyncio.get_event_loop().run_in_executor(
                     None, sys.stdout.buffer.write, data
                 )
