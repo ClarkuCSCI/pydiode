@@ -38,6 +38,8 @@ class AsyncWriter:
                 await asyncio.get_event_loop().run_in_executor(
                     None, sys.stdout.buffer.write, data
                 )
+                # Allow processing of incoming packets
+                await asyncio.sleep(0)
 
 
 class DiodeReceiveProtocol(asyncio.DatagramProtocol):
