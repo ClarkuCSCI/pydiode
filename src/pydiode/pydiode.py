@@ -1,7 +1,9 @@
 import argparse
 import asyncio
 import logging
+import queue
 import sys
+import threading
 
 import pydiode.common
 from .common import (
@@ -12,7 +14,7 @@ from .common import (
     write_packet_details,
 )
 from .send import read_data, send_data
-from .receive import AsyncWriter, receive_data
+from .receive import receive_data, write
 
 
 class ChunkConfig:
@@ -197,17 +199,18 @@ async def async_main():
         try:
             loop = asyncio.get_running_loop()
             exit_code = loop.create_future()
-            queue = asyncio.Queue()
+            q = queue.Queue()
             packet_details = [] if args.packet_details else None
-            writer = AsyncWriter(queue, exit_code)
-            await asyncio.gather(
-                receive_data(queue, packet_details, args.read_ip, args.port),
-                writer.write(),
+            # Writing to STDOUT
+            t = threading.Thread(target=write, args=(q,))
+            t.start()
+            # Reading from the network
+            await asyncio.create_task(
+                receive_data(q, packet_details, args.read_ip, args.port),
             )
-            await exit_code
+            t.join()
             if args.packet_details:
                 write_packet_details(args.packet_details, packet_details)
-            sys.exit(exit_code.result())
         # Don't print the full stack trace for known error types
         except OSError as e:
             if str(e) in {
@@ -225,7 +228,6 @@ async def async_main():
                     f"Can't listen on IP address {args.read_ip}",
                     file=sys.stderr,
                 )
-                sys.exit(1)
             elif str(e) in {
                 # macOS
                 "[Errno 48] Address already in use",
@@ -238,9 +240,12 @@ async def async_main():
                     f"IP address {args.read_ip} is already in use",
                     file=sys.stderr,
                 )
-                sys.exit(1)
             else:
                 raise e
+        finally:
+            q.put(None)
+            t.join()
+            sys.exit(q.get())
     else:
         parser.print_help()
 
