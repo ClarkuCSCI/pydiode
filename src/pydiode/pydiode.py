@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import logging
 import queue
+import socket
 import sys
 import threading
 
@@ -14,7 +15,7 @@ from .common import (
     write_packet_details,
 )
 from .send import read_data, send_data
-from .receive import receive_data, write
+from .receive import receive, write
 
 
 class ChunkConfig:
@@ -197,18 +198,16 @@ async def async_main():
     # If we are receiving data
     elif "read_ip" in args:
         try:
-            loop = asyncio.get_running_loop()
-            exit_code = loop.create_future()
             q = queue.Queue()
+            r = queue.Queue()
             packet_details = [] if args.packet_details else None
-            # Writing to STDOUT
-            t = threading.Thread(target=write, args=(q,))
+            # Write to STDOUT using a separate thread
+            t = threading.Thread(target=write, args=(q, r))
             t.start()
-            # Reading from the network
-            await asyncio.create_task(
-                receive_data(q, packet_details, args.read_ip, args.port),
-            )
-            t.join()
+            # Receive from the network using the main thread
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                sock.bind((args.read_ip, args.port))
+                receive(q, packet_details, sock)
             if args.packet_details:
                 write_packet_details(args.packet_details, packet_details)
         # Don't print the full stack trace for known error types
@@ -245,7 +244,7 @@ async def async_main():
         finally:
             q.put(None)
             t.join()
-            sys.exit(q.get())
+            sys.exit(r.get())
     else:
         parser.print_help()
 

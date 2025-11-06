@@ -11,7 +11,8 @@ import sys
 # Packets >1472 bytes are fragmented: https://stackoverflow.com/a/15003663/
 # macOS can receive broadcast packets of either size.
 # For broadcast support, we default to 1472 when running on macOS.
-UDP_MAX_BYTES = 1472 if sys.platform == "darwin" else 9216
+LINUX_UDP_MAX_BYTES = 9216
+UDP_MAX_BYTES = 1472 if sys.platform == "darwin" else LINUX_UDP_MAX_BYTES
 
 # Number of bits in a byte
 BYTE = 8
