@@ -244,7 +244,8 @@ async def async_main():
         finally:
             q.put(None)
             t.join()
-            sys.exit(r.get())
+        # Use the receiver's exit code, unless an exception propagates
+        sys.exit(r.get())
     else:
         parser.print_help()
 
