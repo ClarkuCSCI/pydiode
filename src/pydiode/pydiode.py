@@ -1,5 +1,5 @@
 import argparse
-import asyncio
+from collections import deque
 import logging
 import queue
 import socket
@@ -14,7 +14,7 @@ from .common import (
     UDP_MAX_BYTES,
     write_packet_details,
 )
-from .send import read_data, send_data
+from .send import DiodeTransport, read, send
 from .receive import receive, write
 
 
@@ -54,7 +54,7 @@ class ChunkConfig:
         self.chunk_max_data_bytes = self.chunk_max_packets * MAX_PAYLOAD
 
 
-async def async_main():
+def main():
     parser = argparse.ArgumentParser(
         description="Send and receive data through a data diode via UDP."
     )
@@ -155,25 +155,35 @@ async def async_main():
         logging.debug(f"chunk_max_data_bytes={cc.chunk_max_data_bytes}")
 
         try:
-            # Queue of chunks to be sent
-            chunks = []
+            # Deque of chunks to be sent
+            chunks = deque()
+            # To indicate that reading should stop
+            f = queue.Queue()
             packet_details = [] if args.packet_details else None
-            # Read and send data concurrently
-            await asyncio.gather(
-                read_data(chunks, cc.chunk_max_data_bytes, cc.chunk_duration),
-                send_data(
+            # Read from STDIN using a separate thread
+            t = threading.Thread(
+                target=read,
+                args=(chunks, cc.chunk_max_data_bytes, cc.chunk_duration, f),
+            )
+            # Initialize a socket for sending data
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                transport = DiodeTransport(
+                    sock, args.read_ip, args.write_ip, args.port
+                )
+                # Start the thread if the socket was successfully initialized
+                t.start()
+                # Send data over the network using the main thread
+                send(
                     chunks,
                     packet_details,
                     cc.chunk_duration,
                     cc.chunk_max_packets,
                     args.redundancy,
-                    args.read_ip,
-                    args.write_ip,
-                    args.port,
-                ),
-            )
+                    transport,
+                )
             if args.packet_details:
                 write_packet_details(args.packet_details, packet_details)
+            exit_code = 0
         # Don't print the full stack trace for known error types
         except OSError as e:
             if str(e) in {
@@ -191,14 +201,23 @@ async def async_main():
                     args.read_ip,
                     file=sys.stderr,
                 )
-                sys.exit(1)
+                exit_code = 1
             else:
                 raise e
+        finally:
+            # Indicate that reading should stop
+            f.put(True)
+            # If the thread was started, wait for it to terminate
+            if t.is_alive():
+                t.join()
+        sys.exit(exit_code)
 
     # If we are receiving data
     elif "read_ip" in args:
         try:
+            # Queue of chunks received
             q = queue.Queue()
+            # For the receiver's exit code
             r = queue.Queue()
             packet_details = [] if args.packet_details else None
             # Write to STDOUT using a separate thread
@@ -248,10 +267,6 @@ async def async_main():
         sys.exit(r.get())
     else:
         parser.print_help()
-
-
-def main():
-    asyncio.run(async_main())
 
 
 if __name__ == "__main__":

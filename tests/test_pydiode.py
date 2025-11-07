@@ -1,3 +1,4 @@
+from collections import deque
 import hashlib
 import os
 import socket
@@ -138,25 +139,25 @@ class TestIO(unittest.TestCase):
 
 class TestChunks(unittest.TestCase):
     def test_empty_chunks(self):
-        chunks = []
+        chunks = deque()
         append_to_chunks(chunks, b"Hello", 10)
-        self.assertEqual([b"Hello"], chunks)
+        self.assertEqual(deque([b"Hello"]), chunks)
 
     def test_full_chunks(self):
-        chunks = []
+        chunks = deque()
         append_to_chunks(chunks, b"I am full!", 10)
-        self.assertEqual([b"I am full!"], chunks)
+        self.assertEqual(deque([b"I am full!"]), chunks)
         append_to_chunks(chunks, b"Hello", 10)
-        self.assertEqual([b"I am full!", b"Hello"], chunks)
+        self.assertEqual(deque([b"I am full!", b"Hello"]), chunks)
 
     def test_partial_chunks(self):
-        chunks = []
+        chunks = deque()
         append_to_chunks(chunks, b"Not full", 10)
-        self.assertEqual([b"Not full"], chunks)
+        self.assertEqual(deque([b"Not full"]), chunks)
         append_to_chunks(chunks, b"Hello", 10)
-        self.assertEqual([b"Not fullHe", b"llo"], chunks)
+        self.assertEqual(deque([b"Not fullHe", b"llo"]), chunks)
         append_to_chunks(chunks, b"!", 10)
-        self.assertEqual([b"Not fullHe", b"llo!"], chunks)
+        self.assertEqual(deque([b"Not fullHe", b"llo!"]), chunks)
 
 
 class TestSendErrors(unittest.TestCase):

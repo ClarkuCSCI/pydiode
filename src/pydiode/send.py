@@ -1,8 +1,9 @@
-import asyncio
 import hashlib
 import logging
 import math
 import os
+import select
+import socket
 import stat
 import sys
 import time
@@ -44,95 +45,107 @@ class Chunk:
             yield header + payload + padding
 
 
-class AsyncReader:
-    def __init__(self, chunk_max_data_bytes):
+class Reader:
+    def __init__(self, chunk_max_data_bytes, finished):
         self.chunk_max_data_bytes = chunk_max_data_bytes
         self.regular_file = stat.S_ISREG(os.fstat(sys.stdin.fileno()).st_mode)
-        self.stream_reader = None
+        self.finished = finished
 
-    async def read(self):
+    def read(self):
         """
-        Read data asynchronously from STDIN.
+        Read data from STDIN. If possible, read data progressively (e.g., if
+        data is arriving through a pipe).
 
         :returns: Bytes read from STDIN
         """
-        if self.regular_file:
-            # If connected to a regular file, there's no need for a
-            # StreamReader: we can quickly read the maximum amount of data for
-            # a chunk.
-            return await asyncio.get_event_loop().run_in_executor(
-                None, sys.stdin.buffer.read, self.chunk_max_data_bytes
-            )
+        if self.regular_file or sys.platform == "win32":
+            # If connected to a regular file, there's no need to read data
+            # progressively: we can quickly read the maximum amount of data for
+            # a chunk. The is our only option on Windows.
+            return sys.stdin.buffer.read(self.chunk_max_data_bytes)
         else:
             # If STDIN is a pipe or character device, data may become available
-            # incrementally. StreamReader lets us read the input incrementally,
-            # instead of waiting for a fixed number of bytes to become
-            # available.
-            # StreamReader doesn't work (and isn't necessary) with file
-            # redirection.
-            # https://stackoverflow.com/a/71627449
-            if not self.stream_reader:
-                loop = asyncio.get_event_loop()
-                self.stream_reader = asyncio.StreamReader()
-                protocol = asyncio.StreamReaderProtocol(self.stream_reader)
-                await loop.connect_read_pipe(lambda: protocol, sys.stdin.buffer)
-            # Read up to the maximum amount of data in a chunk
-            return await self.stream_reader.read(self.chunk_max_data_bytes)
+            # incrementally. We will read the input incrementally, instead of
+            # waiting for a fixed number of bytes to become available.
+            # This isn't necessary with files, and doesn't work on Windows.
+            while self.finished.empty():
+                r, _, _ = select.select([sys.stdin.fileno()], [], [], 0.1)
+                if r:
+                    return os.read(
+                        sys.stdin.fileno(), self.chunk_max_data_bytes
+                    )
 
 
 def append_to_chunks(chunks, data, chunk_max_data_bytes):
     """
-    Append data to the end of the chunks array, filling chunks that have
+    Append data to the right of the chunks deque, filling chunks that have
     space.
 
-    :param chunks: An array of bytes and bytearrays
+    :param chunks: A deque of chunks (bytes and bytearrays)
     :param data: bytes, to be store in chunks
     :param chunk_max_data_bytes: The maximum number of bytes stored in a chunk.
                                  We assume the data parameter never exceeds
                                  this value.
     """
-    # If there are no chunks, or if the last chunk is full
-    if (len(chunks) == 0) or (len(chunks[-1]) == chunk_max_data_bytes):
+    # Attempt to access the rightmost chunk
+    try:
+        right_chunk = chunks.pop()
+        # If the rightmost chunk is full
+        if len(right_chunk) == chunk_max_data_bytes:
+            # Restore the rightmost chunk
+            chunks.append(right_chunk)
+            # Append the new data as a new chunk
+            if len(data) == chunk_max_data_bytes:
+                # There's no room for additional data, so immutable suffices
+                chunks.append(data)
+            else:
+                # Append a mutable bytearray, so we can add data later
+                chunks.append(bytearray(data))
+        # If the rightmost chunk has room for data
+        else:
+            # How much data can fit in the rightmost chunk?
+            remaining_space = chunk_max_data_bytes - len(right_chunk)
+            right_chunk.extend(data[:remaining_space])
+            chunks.append(right_chunk)
+            # If some of the data didn't fit in the last chunk
+            if remaining_space < len(data):
+                chunks.append(bytearray(data[remaining_space:]))
+    # If there was no rightmost chunk
+    except IndexError:
+        # Append the new data as a new chunk
         if len(data) == chunk_max_data_bytes:
             # There's no room for additional data, so immutable suffices
             chunks.append(data)
         else:
             # Append a mutable bytearray, so we can add data later
             chunks.append(bytearray(data))
-    # If there is a chunk, and the last chunk has room for data
-    else:
-        # How much data can fit in the last chunk?
-        remaining_space = chunk_max_data_bytes - len(chunks[-1])
-        chunks[-1].extend(data[:remaining_space])
-        # If some of the data didn't fit in the last chunk
-        if remaining_space < len(data):
-            chunks.append(bytearray(data[remaining_space:]))
 
 
-async def read_data(chunks, chunk_max_data_bytes, chunk_duration):
+def read(chunks, chunk_max_data_bytes, chunk_duration, finished):
     """
-    Read data from STDIN, and store it into the chunks queue.
+    Read data from STDIN, and store it into the chunks deque.
 
-    :param chunks: An array of bytes and bytearrays
+    :param chunks: A deque of chunks (bytes and bytearrays)
     :param chunk_max_data_bytes: The maximum number of bytes stored in a chunk
     :param chunk_duration: Amount of time needed to send each chunk
+    :param finished: A queue used to indicate that reading should stop
     """
-    reader = AsyncReader(chunk_max_data_bytes)
-    data = await reader.read()
+    reader = Reader(chunk_max_data_bytes, finished)
+    data = reader.read()
     # Until EOF is encountered
-    while data:
+    while data and finished.empty():
         logging.debug(f"Read {len(data)} bytes of data")
         append_to_chunks(chunks, data, chunk_max_data_bytes)
-        while len(chunks) > 3:
+        while len(chunks) > 3 and finished.empty():
             # At least the first and second chunks will be full.
             # Wait for chunks to be sent.
-            await asyncio.sleep(chunk_duration)
-        data = await reader.read()
+            time.sleep(chunk_duration)
+        data = reader.read()
     # Signal there won't be more data
     chunks.append(None)
 
 
-class AsyncSleeper:
+class Sleeper:
     def __init__(self, n_packets, duration):
         # The sleep method will be called once for each packet
         self.n_packets = n_packets
@@ -146,7 +159,7 @@ class AsyncSleeper:
         self.duration = duration
         self.start = time.time()
 
-    async def sleep(self):
+    def sleep(self):
         self.p += 1
         if (self.p % PACKET_BURST) == 0:
             self.s += 1
@@ -156,23 +169,41 @@ class AsyncSleeper:
             target_elapsed = (self.s / self.n_sleeps) * self.duration
             already_elapsed = time.time() - self.start
             sleep_duration = target_elapsed - already_elapsed
-            logging.debug(f"Sleeping {sleep_duration:.5f} seconds")
-            await asyncio.sleep(sleep_duration)
+            if sleep_duration > 0:
+                logging.debug(f"Sleeping {sleep_duration:.5f} seconds")
+                time.sleep(sleep_duration)
 
-    async def sleep_remainder(self):
+    def sleep_remainder(self):
         # If we haven't yet slept for the specified number of times, we will
         # perform one big sleep to fill the remaining time
         if self.s < self.n_sleeps:
             # How much time should elapse from start by the end of this sleep?
             already_elapsed = time.time() - self.start
             sleep_duration = self.duration - already_elapsed
-            logging.debug(f"Sleeping remaining {sleep_duration:.5f} seconds")
-            await asyncio.sleep(sleep_duration)
+            if sleep_duration > 0:
+                logging.debug(
+                    f"Sleeping remaining {sleep_duration:.5f} seconds"
+                )
+                time.sleep(sleep_duration)
             # Record that we have met our "sleep quota"
             self.s = self.n_sleeps
 
 
-async def _send_chunk(
+class DiodeTransport:
+    def __init__(self, sock, read_ip, write_ip, port):
+        self.sock = sock
+        # Enable broadcast
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        # Omit the send port: the OS will choose an available port
+        sock.bind((write_ip, 0))
+        self.read_ip = read_ip
+        self.port = port
+
+    def sendto(self, data):
+        self.sock.sendto(data, (self.read_ip, self.port))
+
+
+def _send_chunk(
     chunk,
     packet_details,
     color,
@@ -191,69 +222,46 @@ async def _send_chunk(
     # Send the data over the network
     logging.debug(f"{c.n_packets} packets needed to send {color} chunk")
     for r in range(redundancy):
-        sleeper = AsyncSleeper(chunk_max_packets, chunk_duration)
+        sleeper = Sleeper(chunk_max_packets, chunk_duration)
         logging.debug(f"Send iteration {r + 1}/{redundancy}")
         for data in c:
             transport.sendto(data)
             log_packet("Sent", data)
             if (color == b"R" or color == b"B") and packet_details is not None:
                 packet_details.append(data)
-            await sleeper.sleep()
+            sleeper.sleep()
         # Sleep for any remaining time (i.e., if the number of packets isn't a
         # multiple of PACKET_BURST)
-        await sleeper.sleep_remainder()
+        sleeper.sleep_remainder()
     logging.debug(
         f"Sent {color} chunk of length {len(chunk)} "
         f"in {time.time() - start:.5f} seconds"
     )
 
 
-class DiodeSendProtocol(asyncio.DatagramProtocol):
-    def __init__(self, on_con_lost):
-        self.on_con_lost = on_con_lost
-
-    def connection_lost(self, exc):
-        self.on_con_lost.set_result(True)
-
-
-async def send_data(
+def send(
     chunks,
     packet_details,
     chunk_duration,
     chunk_max_packets,
     redundancy,
-    read_ip,
-    write_ip,
-    port,
+    transport,
 ):
     """
     Send chunks over the network.
 
-    :param chunks: A list for bytes and bytearrays
+    :param chunks: A deque of chunks (bytes and bytearrays)
     :param packet_details: A list for packet data, or None
     :param chunk_duration: Amount of time needed to send each chunk
     :param chunk_max_packets: Maximum number of packets per chunk
     :param redundancy: How many times to transfer the data
-    :param read_ip: Send data to this IP address
-    :param write_ip: Send data from this IP address
-    :param port: Send data using this port
+    :param transport: Send data using this wrapper around a UDP socket
     """
     # The current chunk color
     color = b"R"
 
     # Hash of the sent data, for verification by receiver
     sha = hashlib.sha256()
-
-    # Open a UDP "connection"
-    loop = asyncio.get_event_loop()
-    on_con_lost = loop.create_future()
-    transport, _ = await loop.create_datagram_endpoint(
-        lambda: DiodeSendProtocol(on_con_lost),
-        remote_addr=(read_ip, port),
-        # Don't specify the send port: the OS will choose an available port
-        local_addr=(write_ip, None),
-        allow_broadcast=True,
-    )
 
     # Mitigate early packet loss by sending the first chunk multiple times
     warmup = True
@@ -262,14 +270,14 @@ async def send_data(
     # Send data until a None chunk is encountered, indicating EOF
     prev_chunk = None
     while True:
-        if len(chunks) > 0:
-            chunk = chunks.pop(0)
+        try:
+            chunk = chunks.popleft()
             prev_chunk = chunk
             # There will never be more data
             if chunk is None:
                 digest = sha.digest()
                 logging.debug(f"EOF's digest: {digest.hex()}")
-                await _send_chunk(
+                _send_chunk(
                     digest,
                     packet_details,
                     b"K",
@@ -282,7 +290,7 @@ async def send_data(
             # We have a chunk of data to send
             else:
                 sha.update(chunk)
-                await _send_chunk(
+                _send_chunk(
                     chunk,
                     packet_details,
                     color,
@@ -294,24 +302,21 @@ async def send_data(
                 warmup = False
                 # Switch the color
                 color = b"B" if color == b"R" else b"R"
-        # Resend the previous chunk while we wait for more data
-        elif prev_chunk:
-            logging.debug("Resending previous chunk while waiting for data")
-            await _send_chunk(
-                prev_chunk,
-                packet_details,
-                b"B" if color == b"R" else b"R",  # Previous color
-                1,  # Single redundancy for greater responsiveness
-                chunk_duration,
-                chunk_max_packets,
-                transport,
-            )
-        # Wait for data
-        else:
-            logging.debug("Waiting for data")
-            await asyncio.sleep(chunk_duration)
-
-    # Close the UDP "connection"
-    transport.close()
-    # Wait for the buffer to flush before returning
-    await on_con_lost
+        # If there were no chunks in the deque
+        except IndexError:
+            # Resend the previous chunk while we wait for more data
+            if prev_chunk:
+                logging.debug("Resending previous chunk while waiting for data")
+                _send_chunk(
+                    prev_chunk,
+                    packet_details,
+                    b"B" if color == b"R" else b"R",  # Previous color
+                    1,  # Single redundancy for greater responsiveness
+                    chunk_duration,
+                    chunk_max_packets,
+                    transport,
+                )
+            # Wait for data
+            else:
+                logging.debug("Waiting for data")
+                time.sleep(chunk_duration)
