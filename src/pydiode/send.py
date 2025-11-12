@@ -136,7 +136,7 @@ def read(chunks, chunk_max_data_bytes, chunk_duration, finished):
     while data and finished.empty():
         logging.debug(f"Read {len(data)} bytes of data")
         append_to_chunks(chunks, data, chunk_max_data_bytes)
-        while len(chunks) > 3 and finished.empty():
+        while len(chunks) > 10 and finished.empty():
             # At least the first and second chunks will be full.
             # Wait for chunks to be sent.
             time.sleep(chunk_duration)
