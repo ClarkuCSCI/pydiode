@@ -3,7 +3,7 @@ import logging
 import queue
 import sys
 
-from .common import log_packet, LINUX_UDP_MAX_BYTES, PACKET_HEADER
+from .common import log_packet, PACKET_HEADER
 
 
 def write(q, r):
@@ -57,7 +57,9 @@ def receive(q, packet_details, sock):
     # Packets for the chunks
     packets = {b"R": {}, b"B": {}}
     while True:
-        data, _ = sock.recvfrom(LINUX_UDP_MAX_BYTES)
+        # IPv4 UDP packet payloads cannot exceed 65507 bytes.
+        # Linux and macOS can both receive packets of this size.
+        data, _ = sock.recvfrom(65507)
 
         color, n_packets, seq, len_payload = PACKET_HEADER.unpack(
             data[: PACKET_HEADER.size]
