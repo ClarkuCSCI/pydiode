@@ -14,9 +14,6 @@ from .common import log_packet, MAX_PAYLOAD, PACKET_HEADER
 # We have observed elevated packet loss into packet index ~330.
 MIN_WARMUP_CHUNKS = 5
 
-# Sleep after sending this many packets
-PACKET_BURST = 10
-
 # Send the EOF chunk at least this many times
 MIN_EOF_CHUNKS = 2
 
@@ -145,50 +142,6 @@ def read(chunks, chunk_max_data_bytes, chunk_duration, finished):
     chunks.append(None)
 
 
-class Sleeper:
-    def __init__(self, n_packets, duration):
-        # The sleep method will be called once for each packet
-        self.n_packets = n_packets
-        # We actually sleep every PACKET_BURST packets
-        self.n_sleeps = math.ceil(n_packets / PACKET_BURST)
-        # The number of times the sleep method has been called so far
-        self.p = 0
-        # The number of actual sleeps we've performed so far
-        self.s = 0
-        # Eventually, this much time should pass
-        self.duration = duration
-        self.start = time.time()
-
-    def sleep(self):
-        self.p += 1
-        if (self.p % PACKET_BURST) == 0:
-            self.s += 1
-            if self.s > self.n_sleeps:
-                raise IndexError(f"Already slept {self.n_sleeps} times")
-            # How much time should elapse from start by the end of this sleep?
-            target_elapsed = (self.s / self.n_sleeps) * self.duration
-            already_elapsed = time.time() - self.start
-            sleep_duration = target_elapsed - already_elapsed
-            if sleep_duration > 0:
-                logging.debug(f"Sleeping {sleep_duration:.5f} seconds")
-                time.sleep(sleep_duration)
-
-    def sleep_remainder(self):
-        # If we haven't yet slept for the specified number of times, we will
-        # perform one big sleep to fill the remaining time
-        if self.s < self.n_sleeps:
-            # How much time should elapse from start by the end of this sleep?
-            already_elapsed = time.time() - self.start
-            sleep_duration = self.duration - already_elapsed
-            if sleep_duration > 0:
-                logging.debug(
-                    f"Sleeping remaining {sleep_duration:.5f} seconds"
-                )
-                time.sleep(sleep_duration)
-            # Record that we have met our "sleep quota"
-            self.s = self.n_sleeps
-
-
 class DiodeTransport:
     def __init__(self, sock, read_ip, write_ip, port):
         self.sock = sock
@@ -222,17 +175,18 @@ def _send_chunk(
     # Send the data over the network
     logging.debug(f"{c.n_packets} packets needed to send {color} chunk")
     for r in range(redundancy):
-        sleeper = Sleeper(chunk_max_packets, chunk_duration)
+        target_elapsed = chunk_duration / chunk_max_packets
         logging.debug(f"Send iteration {r + 1}/{redundancy}")
         for data in c:
+            start = time.time()
             transport.sendto(data)
             log_packet("Sent", data)
             if (color == b"R" or color == b"B") and packet_details is not None:
                 packet_details.append(data)
-            sleeper.sleep()
-        # Sleep for any remaining time (i.e., if the number of packets isn't a
-        # multiple of PACKET_BURST)
-        sleeper.sleep_remainder()
+            already_elapsed = time.time() - start
+            sleep_duration = target_elapsed - already_elapsed
+            if sleep_duration > 0:
+                time.sleep(sleep_duration)
     logging.debug(
         f"Sent {color} chunk of length {len(chunk)} "
         f"in {time.time() - start:.5f} seconds"
