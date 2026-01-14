@@ -10,9 +10,9 @@ import time
 
 from .common import log_packet, MAX_PAYLOAD, PACKET_HEADER
 
-# Send the first chunk at least this many times.
-# We have observed elevated packet loss into packet index ~330.
-MIN_WARMUP_CHUNKS = 5
+# To protect against high packet loss at the start of transfers, the first
+# chunk is sent repeatedly during the warmup period.
+WARMUP_DURATION = 0.1
 
 # Send the EOF chunk at least this many times
 MIN_EOF_CHUNKS = 2
@@ -219,7 +219,7 @@ def send(
 
     # Mitigate early packet loss by sending the first chunk multiple times
     warmup = True
-    warmup_redundancy = MIN_WARMUP_CHUNKS + redundancy - 1
+    warmup_redundancy = math.ceil(WARMUP_DURATION / chunk_duration) + redundancy
 
     # Send data until a None chunk is encountered, indicating EOF
     prev_chunk = None
