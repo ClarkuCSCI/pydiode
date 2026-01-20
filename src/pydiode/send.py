@@ -12,7 +12,7 @@ from .common import log_packet, MAX_PAYLOAD, PACKET_HEADER
 
 # To protect against high packet loss at the start of transfers, the first
 # chunk is sent repeatedly during the warmup period.
-WARMUP_DURATION = 0.2
+WARMUP_DURATION = 0.1
 
 # Send the EOF chunk at least this many times
 MIN_EOF_CHUNKS = 2
