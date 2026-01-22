@@ -14,9 +14,6 @@ from .common import log_packet, MAX_PAYLOAD, PACKET_HEADER
 # chunk is sent repeatedly during the warmup period.
 WARMUP_DURATION = 0.1 if sys.platform == "darwin" else 0
 
-# Send the EOF chunk at least this many times
-MIN_EOF_CHUNKS = 1
-
 
 class Chunk:
     """
@@ -127,15 +124,12 @@ def read(chunks, chunk_max_data_bytes, chunk_duration, finished):
     :param chunk_duration: Amount of time needed to send each chunk
     :param finished: A queue used to indicate that reading should stop
     """
-    # Hash of the sent data, for verification by receiver
-    sha = hashlib.sha256()
     reader = Reader(chunk_max_data_bytes, finished)
     data = reader.read()
     # Until EOF is encountered
     while data and finished.empty():
         logging.debug(f"Read {len(data)} bytes of data")
         append_to_chunks(chunks, data, chunk_max_data_bytes)
-        sha.update(data)
         while len(chunks) > 3 and finished.empty():
             # At least the first and second chunks will be full.
             # Wait for chunks to be sent.
@@ -143,7 +137,6 @@ def read(chunks, chunk_max_data_bytes, chunk_duration, finished):
         data = reader.read()
     # Signal there won't be more data
     chunks.append(None)
-    chunks.append(sha.digest())
 
 
 class DiodeTransport:
@@ -218,6 +211,9 @@ def send(
     # The current chunk color
     color = b"R"
 
+    # Hash of the sent data, for verification by receiver
+    sha = hashlib.sha256()
+
     # Mitigate early packet loss by sending the first chunk multiple times
     warmup = True
     warmup_redundancy = math.ceil(WARMUP_DURATION / chunk_duration) + redundancy
@@ -230,13 +226,13 @@ def send(
             prev_chunk = chunk
             # There will never be more data
             if chunk is None:
-                digest = chunks.popleft()
+                digest = sha.digest()
                 logging.debug(f"EOF's digest: {digest.hex()}")
                 _send_chunk(
                     digest,
                     packet_details,
                     b"K",
-                    MIN_EOF_CHUNKS + redundancy - 1,
+                    redundancy,
                     chunk_duration,
                     chunk_max_packets,
                     transport,
@@ -244,6 +240,7 @@ def send(
                 break
             # We have a chunk of data to send
             else:
+                sha.update(chunk)
                 _send_chunk(
                     chunk,
                     packet_details,
