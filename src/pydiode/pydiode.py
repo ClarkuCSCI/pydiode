@@ -193,6 +193,9 @@ def main():
                 # Linux
                 "[Errno 99] Cannot assign requested address",
                 "[Errno -2] Name or service not known",
+                # Windows
+                "[Errno 8] Name or service not known",
+                "[Errno 125] Cannot assign requested address",
             }:
                 print(
                     f"Can't send from IP address",
@@ -241,6 +244,8 @@ def main():
                 # Windows
                 "[Errno 11001] getaddrinfo failed",
                 "[WinError 10049] The requested address is not valid in its context",
+                "[Errno 8] Name or service not known",
+                "[Errno 125] Cannot assign requested address",
             }:
                 print(
                     f"Can't listen on IP address {args.read_ip}",
@@ -253,6 +258,7 @@ def main():
                 "[Errno 98] Address already in use",
                 # Windows
                 "[WinError 10048] Only one usage of each socket address (protocol/network address/port) is normally permitted",
+                "[Errno 112] Address already in use",
             }:
                 print(
                     f"IP address {args.read_ip} is already in use",
