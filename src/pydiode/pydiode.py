@@ -26,10 +26,10 @@ ADDRESS_UNKNOWN = {
     "[Errno 99] Cannot assign requested address",
     "[Errno -2] Name or service not known",
     # Windows
+    "[Errno 125] Cannot assign requested address",
+    "[Errno 8] Name or service not known",
     "[Errno 11001] getaddrinfo failed",
     "[WinError 10049] The requested address is not valid in its context",
-    "[Errno 8] Name or service not known",
-    "[Errno 125] Cannot assign requested address",
 }
 ADDRESS_USED = {
     # macOS
@@ -37,8 +37,8 @@ ADDRESS_USED = {
     # Linux
     "[Errno 98] Address already in use",
     # Windows
-    "[WinError 10048] Only one usage of each socket address (protocol/network address/port) is normally permitted",
     "[Errno 112] Address already in use",
+    "[WinError 10048] Only one usage of each socket address (protocol/network address/port) is normally permitted",
 }
 
 
