@@ -17,6 +17,30 @@ from .common import (
 from .send import DiodeTransport, read, send
 from .receive import receive, write
 
+# We convert these OS-specific error messages to more readable messages
+ADDRESS_UNKNOWN = {
+    # macOS
+    "[Errno 49] Can't assign requested address",
+    "[Errno 8] nodename nor servname provided, or not known",
+    # Linux
+    "[Errno 99] Cannot assign requested address",
+    "[Errno -2] Name or service not known",
+    # Windows
+    "[Errno 11001] getaddrinfo failed",
+    "[WinError 10049] The requested address is not valid in its context",
+    "[Errno 8] Name or service not known",
+    "[Errno 125] Cannot assign requested address",
+}
+ADDRESS_USED = {
+    # macOS
+    "[Errno 48] Address already in use",
+    # Linux
+    "[Errno 98] Address already in use",
+    # Windows
+    "[WinError 10048] Only one usage of each socket address (protocol/network address/port) is normally permitted",
+    "[Errno 112] Address already in use",
+}
+
 
 class ChunkConfig:
     """
@@ -186,17 +210,7 @@ def main():
             exit_code = 0
         # Don't print the full stack trace for known error types
         except OSError as e:
-            if str(e) in {
-                # macOS
-                "[Errno 49] Can't assign requested address",
-                "[Errno 8] nodename nor servname provided, or not known",
-                # Linux
-                "[Errno 99] Cannot assign requested address",
-                "[Errno -2] Name or service not known",
-                # Windows
-                "[Errno 8] Name or service not known",
-                "[Errno 125] Cannot assign requested address",
-            }:
+            if str(e) in ADDRESS_UNKNOWN:
                 print(
                     f"Can't send from IP address",
                     args.write_ip,
@@ -234,32 +248,12 @@ def main():
                 write_packet_details(args.packet_details, packet_details)
         # Don't print the full stack trace for known error types
         except OSError as e:
-            if str(e) in {
-                # macOS
-                "[Errno 49] Can't assign requested address",
-                "[Errno 8] nodename nor servname provided, or not known",
-                # Linux
-                "[Errno 99] Cannot assign requested address",
-                "[Errno -2] Name or service not known",
-                # Windows
-                "[Errno 11001] getaddrinfo failed",
-                "[WinError 10049] The requested address is not valid in its context",
-                "[Errno 8] Name or service not known",
-                "[Errno 125] Cannot assign requested address",
-            }:
+            if str(e) in ADDRESS_UNKNOWN:
                 print(
                     f"Can't listen on IP address {args.read_ip}",
                     file=sys.stderr,
                 )
-            elif str(e) in {
-                # macOS
-                "[Errno 48] Address already in use",
-                # Linux
-                "[Errno 98] Address already in use",
-                # Windows
-                "[WinError 10048] Only one usage of each socket address (protocol/network address/port) is normally permitted",
-                "[Errno 112] Address already in use",
-            }:
+            elif str(e) in ADDRESS_USED:
                 print(
                     f"IP address {args.read_ip} is already in use",
                     file=sys.stderr,
