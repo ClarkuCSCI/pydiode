@@ -14,9 +14,6 @@ from .common import log_packet, MAX_PAYLOAD, PACKET_HEADER
 # chunk is sent repeatedly during the warmup period.
 WARMUP_DURATION = 0.1 if sys.platform == "darwin" else 0
 
-# Send the EOF chunk at least this many times
-MIN_EOF_CHUNKS = 1
-
 
 class Chunk:
     """
@@ -236,7 +233,7 @@ def send(
                     digest,
                     packet_details,
                     b"K",
-                    MIN_EOF_CHUNKS + redundancy - 1,
+                    redundancy,
                     chunk_duration,
                     chunk_max_packets,
                     transport,
