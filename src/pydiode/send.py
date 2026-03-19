@@ -170,7 +170,7 @@ def _send_chunk(
     Send packets containing all the data in the chunk, possibly redundantly
     until the target number of packets is sent.
     """
-    start = time.time()
+    start = time.monotonic()
     # Wrap the chunk bytes in a helper class
     c = Chunk(chunk, color, chunk_max_packets)
     # Send the data over the network
@@ -179,18 +179,18 @@ def _send_chunk(
         target_elapsed = chunk_duration / chunk_max_packets
         logging.debug(f"Send iteration {r + 1}/{redundancy}")
         for data in c:
-            start = time.time()
+            start = time.monotonic()
             transport.sendto(data)
             log_packet("Sent", data)
             if (color == b"R" or color == b"B") and packet_details is not None:
                 packet_details.append(data)
-            already_elapsed = time.time() - start
+            already_elapsed = time.monotonic() - start
             sleep_duration = target_elapsed - already_elapsed
             if sleep_duration > 0:
                 time.sleep(sleep_duration)
     logging.debug(
         f"Sent {color} chunk of length {len(chunk)} "
-        f"in {time.time() - start:.5f} seconds"
+        f"in {time.monotonic() - start:.5f} seconds"
     )
 
 
