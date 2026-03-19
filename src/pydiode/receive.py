@@ -42,6 +42,10 @@ def write(q, r):
         else:
             sha.update(data)
             sys.stdout.buffer.write(data)
+            # For throughput, don't flush after every packet. But for
+            # responsiveness, flush if we don't have another packet ready.
+            if q.empty():
+                sys.stdout.flush()
 
 
 def receive(q, packet_details, sock):
