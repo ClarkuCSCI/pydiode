@@ -51,5 +51,5 @@ def write_packet_details(filename, packet_details):
         writer.writeheader()
         for i, data in enumerate(packet_details):
             writer.writerow(
-                {"ID": i, "PacketDigest": hashlib.sha256(data).hexdigest()[:7]}
+                {"ID": i, "PacketDigest": hashlib.sha256(data).hexdigest()[:16]}
             )
