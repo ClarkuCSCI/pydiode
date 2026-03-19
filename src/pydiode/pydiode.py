@@ -226,6 +226,10 @@ def main():
             # Receive from the network using the main thread
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
                 sock.bind((args.read_ip, args.port))
+                # Use macOS's maximum RCVBUF size, which is larger than its
+                # default. Linux's default matches its maximum, and is smaller
+                # than macOS's. On Linux, requesting a larger size is ignored.
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 8388608)
                 receive(q, packet_details, sock)
             if args.packet_details:
                 write_packet_details(args.packet_details, packet_details)
