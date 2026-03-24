@@ -19,8 +19,8 @@ WARMUP_DURATION = 0.1 if sys.platform == "darwin" else 0
 
 class BoundedDeque:
     """
-    append() and popleft() will block if the deque is full or empty,
-    respectively. pop() will throw an IndexError if the deque is empty.
+    append() will block if the deque is full.
+    pop() and popleft() will throw an IndexError if the deque is empty.
     """
 
     def __init__(self, maxsize):
@@ -45,8 +45,6 @@ class BoundedDeque:
 
     def popleft(self):
         with self.not_empty:
-            while not self.deque:
-                self.not_empty.wait()
             item = self.deque.popleft()
             self.not_full.notify()
             return item
