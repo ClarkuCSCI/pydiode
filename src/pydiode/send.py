@@ -12,10 +12,6 @@ import time
 
 from .common import log_packet, MAX_PAYLOAD, PACKET_HEADER
 
-# To protect against high packet loss at the start of transfers, the first
-# chunk is sent repeatedly during the warmup period.
-WARMUP_DURATION = 0.1 if sys.platform == "darwin" else 0
-
 
 class BoundedDeque:
     """
@@ -245,10 +241,6 @@ def send(
     # The current chunk color
     color = b"R"
 
-    # Mitigate early packet loss by sending the first chunk multiple times
-    warmup = True
-    warmup_redundancy = math.ceil(WARMUP_DURATION / chunk_duration) + redundancy
-
     # Send data until a None chunk is encountered, indicating EOF
     prev_chunk = None
     while True:
@@ -275,12 +267,11 @@ def send(
                     chunk,
                     packet_details,
                     color,
-                    redundancy if not warmup else warmup_redundancy,
+                    redundancy,
                     chunk_duration,
                     chunk_max_packets,
                     transport,
                 )
-                warmup = False
                 # Switch the color
                 color = b"B" if color == b"R" else b"R"
         # If there were no chunks in the deque
