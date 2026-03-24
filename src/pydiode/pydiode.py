@@ -157,12 +157,12 @@ def main():
             # Deque of chunks to be sent. Holds at most three chunks.
             chunks = BoundedDeque(3)
             # To indicate that reading should stop
-            f = queue.Queue()
+            finished = threading.Event()
             packet_details = [] if args.packet_details else None
             # Read from STDIN using a separate thread
             t = threading.Thread(
                 target=read,
-                args=(chunks, cc.chunk_max_data_bytes, f),
+                args=(chunks, cc.chunk_max_data_bytes, finished),
             )
             # Initialize a socket for sending data
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
@@ -205,7 +205,7 @@ def main():
                 raise e
         finally:
             # Indicate that reading should stop
-            f.put(True)
+            finished.set()
             # If the thread was started, wait for it to terminate
             if t.is_alive():
                 t.join()

@@ -1,6 +1,7 @@
 from collections import deque
 import hashlib
 import os
+import signal
 import socket
 import subprocess
 import tempfile
@@ -291,3 +292,25 @@ class TestReceiveErrors(unittest.TestCase):
                 "IP address 127.0.0.1 is already in use",
                 pydiode.stderr.decode("utf-8").strip(),
             )
+
+
+class TestKeyboardInterrupt(unittest.TestCase):
+    def test_interrupt_send(self):
+        send = subprocess.Popen(
+            ["pydiode", "send", "127.0.0.1", "127.0.0.1"],
+            stderr=subprocess.PIPE,
+        )
+        time.sleep(0.1)
+        send.send_signal(signal.SIGINT)
+        _, stderr = send.communicate()
+        self.assertIn(b"KeyboardInterrupt", stderr)
+
+    def test_interrupt_receive(self):
+        receive = subprocess.Popen(
+            ["pydiode", "receive", "127.0.0.1"],
+            stderr=subprocess.PIPE,
+        )
+        time.sleep(0.1)
+        receive.send_signal(signal.SIGINT)
+        _, stderr = receive.communicate()
+        self.assertIn(b"KeyboardInterrupt", stderr)

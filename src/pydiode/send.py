@@ -99,7 +99,7 @@ class Reader:
             # incrementally. We will read the input incrementally, instead of
             # waiting for a fixed number of bytes to become available.
             # This isn't necessary with files, and doesn't work on Windows.
-            while self.finished.empty():
+            while not self.finished.is_set():
                 r, _, _ = select.select([sys.stdin.fileno()], [], [], 0.1)
                 if r:
                     return os.read(
@@ -158,14 +158,14 @@ def read(chunks, chunk_max_data_bytes, finished):
 
     :param chunks: A deque of chunks (bytes and bytearrays)
     :param chunk_max_data_bytes: The maximum number of bytes stored in a chunk
-    :param finished: A queue used to indicate that reading should stop
+    :param finished: An Event used to indicate that reading should stop
     """
     # Hash of the sent data, for verification by receiver
     sha = hashlib.sha256()
     reader = Reader(chunk_max_data_bytes, finished)
     data = reader.read()
     # Until EOF is encountered
-    while data and finished.empty():
+    while data and not finished.is_set():
         logging.debug(f"Read {len(data)} bytes of data")
         append_to_chunks(chunks, data, chunk_max_data_bytes)
         sha.update(data)
