@@ -302,3 +302,21 @@ class TestKeyboardInterrupt(unittest.TestCase):
         receive.send_signal(signal.SIGINT)
         _, stderr = receive.communicate()
         self.assertIn(b"KeyboardInterrupt", stderr)
+
+
+class TestRetransmits(unittest.TestCase):
+    @unittest.mock.patch("pydiode.send._send_chunk")
+    def test_send_retransmits(self, mock_send_chunk):
+        from pydiode.send import send, _send_chunk
+
+        chunks = BoundedDeque(3)
+        chunks.append(b"Hello")
+        t = threading.Thread(
+            target=lambda: send(chunks, None, 0.01, 10, 2, None)
+        )
+        t.start()
+        time.sleep(0.01)
+        chunks.append(None)
+        chunks.append(b"fakedigest")
+        t.join()
+        self.assertGreater(mock_send_chunk.call_count, 2)
