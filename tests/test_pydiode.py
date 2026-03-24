@@ -85,6 +85,24 @@ class TestIO(unittest.TestCase):
         # Check whether the received data matches the sent data
         self.assertEqual(expected_hasher.hexdigest(), actual_hasher.hexdigest())
 
+    def test_diode_pipe_io_responsiveness(self):
+        receive = subprocess.Popen(
+            f"pydiode receive 127.0.0.1",
+            stdout=subprocess.PIPE,
+            shell=True,
+        )
+        send = subprocess.Popen(
+            "pydiode send 127.0.0.1 127.0.0.1",
+            stdin=subprocess.PIPE,
+            shell=True,
+        )
+        send.stdin.write(b"Hello\n")
+        send.stdin.flush()
+        self.assertEqual(b"Hello\n", receive.stdout.readline())
+        send.stdin.close()
+        send.wait()
+        receive.communicate()
+
     def test_packet_details(self):
         with tempfile.TemporaryDirectory() as tempdir:
             TX_DETAILS = os.path.join(tempdir, "tx.csv")
