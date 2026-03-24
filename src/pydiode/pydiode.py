@@ -39,7 +39,9 @@ class ChunkConfig:
             # packets without exceeding max_bitrate?
             self.chunk_max_packets = chunk_max_packets
             self.chunk_duration = (
-                chunk_max_packets * UDP_MAX_BYTES * BYTE / max_bitrate
+                (chunk_max_packets * UDP_MAX_BYTES * BYTE / max_bitrate)
+                if max_bitrate
+                else 0
             )
         # Calculate chunk_max_packets based on chunk_duration
         else:
