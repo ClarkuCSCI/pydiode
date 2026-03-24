@@ -1,5 +1,4 @@
 import argparse
-from collections import deque
 import logging
 import queue
 import socket
@@ -14,7 +13,7 @@ from .common import (
     UDP_MAX_BYTES,
     write_packet_details,
 )
-from .send import DiodeTransport, read, send
+from .send import BoundedDeque, DiodeTransport, read, send
 from .receive import receive, write
 
 
@@ -155,15 +154,15 @@ def main():
         logging.debug(f"chunk_max_data_bytes={cc.chunk_max_data_bytes}")
 
         try:
-            # Deque of chunks to be sent
-            chunks = deque()
+            # Deque of chunks to be sent. Holds at most three chunks.
+            chunks = BoundedDeque(3)
             # To indicate that reading should stop
             f = queue.Queue()
             packet_details = [] if args.packet_details else None
             # Read from STDIN using a separate thread
             t = threading.Thread(
                 target=read,
-                args=(chunks, cc.chunk_max_data_bytes, cc.chunk_duration, f),
+                args=(chunks, cc.chunk_max_data_bytes, f),
             )
             # Initialize a socket for sending data
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:

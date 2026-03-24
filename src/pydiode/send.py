@@ -1,3 +1,4 @@
+from collections import deque
 import hashlib
 import logging
 import math
@@ -6,6 +7,7 @@ import select
 import socket
 import stat
 import sys
+import threading
 import time
 
 from .common import log_packet, MAX_PAYLOAD, PACKET_HEADER
@@ -13,6 +15,41 @@ from .common import log_packet, MAX_PAYLOAD, PACKET_HEADER
 # To protect against high packet loss at the start of transfers, the first
 # chunk is sent repeatedly during the warmup period.
 WARMUP_DURATION = 0.1 if sys.platform == "darwin" else 0
+
+
+class BoundedDeque:
+    """
+    append() and popleft() will block if the deque is full or empty,
+    respectively. pop() will throw an IndexError if the deque is empty.
+    """
+
+    def __init__(self, maxsize):
+        self.maxsize = maxsize
+        self.deque = deque()
+        self.mutex = threading.Lock()
+        self.not_empty = threading.Condition(self.mutex)
+        self.not_full = threading.Condition(self.mutex)
+
+    def append(self, item):
+        with self.not_full:
+            while len(self.deque) >= self.maxsize:
+                self.not_full.wait()
+            self.deque.append(item)
+            self.not_empty.notify()
+
+    def pop(self):
+        with self.not_empty:
+            item = self.deque.pop()
+            self.not_full.notify()
+            return item
+
+    def popleft(self):
+        with self.not_empty:
+            while not self.deque:
+                self.not_empty.wait()
+            item = self.deque.popleft()
+            self.not_full.notify()
+            return item
 
 
 class Chunk:
@@ -115,13 +152,12 @@ def append_to_chunks(chunks, data, chunk_max_data_bytes):
             chunks.append(bytearray(data))
 
 
-def read(chunks, chunk_max_data_bytes, chunk_duration, finished):
+def read(chunks, chunk_max_data_bytes, finished):
     """
     Read data from STDIN, and store it into the chunks deque.
 
     :param chunks: A deque of chunks (bytes and bytearrays)
     :param chunk_max_data_bytes: The maximum number of bytes stored in a chunk
-    :param chunk_duration: Amount of time needed to send each chunk
     :param finished: A queue used to indicate that reading should stop
     """
     # Hash of the sent data, for verification by receiver
@@ -133,10 +169,6 @@ def read(chunks, chunk_max_data_bytes, chunk_duration, finished):
         logging.debug(f"Read {len(data)} bytes of data")
         append_to_chunks(chunks, data, chunk_max_data_bytes)
         sha.update(data)
-        while len(chunks) > 3 and finished.empty():
-            # At least the first and second chunks will be full.
-            # Wait for chunks to be sent.
-            time.sleep(chunk_duration)
         data = reader.read()
     # Signal there won't be more data
     chunks.append(None)
