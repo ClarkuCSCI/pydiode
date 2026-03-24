@@ -16,7 +16,8 @@ from .common import log_packet, MAX_PAYLOAD, PACKET_HEADER
 class BoundedDeque:
     """
     append() will block if the deque is full.
-    pop() and popleft() will throw an IndexError if the deque is empty.
+    pop() and popleft() will throw an IndexError if the deque is empty, unless
+    wait=True is supplied.
     """
 
     def __init__(self, maxsize):
@@ -33,14 +34,18 @@ class BoundedDeque:
             self.deque.append(item)
             self.not_empty.notify()
 
-    def pop(self):
+    def pop(self, wait=False):
         with self.not_empty:
+            while wait and not self.deque:
+                self.not_empty.wait()
             item = self.deque.pop()
             self.not_full.notify()
             return item
 
-    def popleft(self):
+    def popleft(self, wait=False):
         with self.not_empty:
+            while wait and not self.deque:
+                self.not_empty.wait()
             item = self.deque.popleft()
             self.not_full.notify()
             return item
@@ -249,7 +254,7 @@ def send(
             prev_chunk = chunk
             # There will never be more data
             if chunk is None:
-                digest = chunks.popleft()
+                digest = chunks.popleft(wait=True)
                 logging.debug(f"EOF's digest: {digest.hex()}")
                 _send_chunk(
                     digest,

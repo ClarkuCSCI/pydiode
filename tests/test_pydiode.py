@@ -178,6 +178,40 @@ class TestBoundedDeque(unittest.TestCase):
         with self.assertRaises(IndexError):
             bd.popleft()
 
+    def test_pop_blocks(self):
+        bd = BoundedDeque(3)
+        result = []
+
+        def pop_target():
+            result.append(bd.pop(wait=True))
+
+        # Popping from an empty deque should block when wait=True
+        t = threading.Thread(target=pop_target)
+        t.start()
+        time.sleep(0.1)
+        self.assertEqual([], result)
+        # Popping should work after an item is appended
+        bd.append("a")
+        t.join(timeout=1)
+        self.assertEqual(["a"], result)
+
+    def test_popleft_blocks(self):
+        bd = BoundedDeque(3)
+        result = []
+
+        def pop_target():
+            result.append(bd.popleft(wait=True))
+
+        # Left-popping from an empty deque should block when wait=True
+        t = threading.Thread(target=pop_target)
+        t.start()
+        time.sleep(0.1)
+        self.assertEqual([], result)
+        # Left-popping should work after an item is appended
+        bd.append("a")
+        t.join(timeout=1)
+        self.assertEqual(["a"], result)
+
     def test_append_blocks(self):
         bd = BoundedDeque(1)
         bd.append("a")
