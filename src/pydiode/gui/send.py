@@ -12,7 +12,7 @@ BYTE = 8
 REDUNDANCY = 2
 # Extra time needed for transfers, considering more than just bitrate and
 # redundancy. Determined experimentally with a 1 Gbit transfer.
-OVERHEAD = 1.085
+OVERHEAD = 2 if sys.platform == "darwin" else 1.3
 # Increment progress bars every 25 milliseconds, for smooth animation.
 INCREMENT_INTERVAL = 25
 # Test message
@@ -83,6 +83,8 @@ def get_increment_size(sources_list, progress_bar, bitrate_int):
     for source in sources_list:
         size += os.path.getsize(source)
     # How much time will the transfer take, in milliseconds?
+    # If sending with an unlimited bitrate, approximate as 1 Gbit/sec
+    bitrate_int = bitrate_int if bitrate_int else 1_000_000_000
     est_time = size * BYTE / bitrate_int * REDUNDANCY * OVERHEAD * 1000
     # By how much do we increment each time?
     n_increments = est_time / INCREMENT_INTERVAL
@@ -98,7 +100,9 @@ def bitrate_str_to_int(bitrate_str):
     """
     suffix_mult = {" Mbit/s": 1_000_000, " Gbit/s": 1_000_000_000}
     for suffix, mult in suffix_mult.items():
-        if bitrate_str.endswith(suffix):
+        if bitrate_str == "Unlimited":
+            return 0
+        elif bitrate_str.endswith(suffix):
             return int(bitrate_str.replace(suffix, "")) * mult
     raise ValueError(f"Unknown bitrate format: {bitrate_str}")
 
