@@ -203,17 +203,19 @@ def gui_main():
     key_id.set(config["pydiode"].get("key_id", ""))
     ttk.Label(settings_inner, text="Bitrate:").grid(column=0, row=4, sticky="E")
     bitrate = StringVar()
+    bitrate_values = [
+        "100 Mbit/s",
+        "250 Mbit/s",
+        "500 Mbit/s",
+        "750 Mbit/s",
+        "1 Gbit/s",
+    ]
+    if sys.platform == "linux":
+        bitrate_values.append("Unlimited")
     ttk.Combobox(
         settings_inner,
         textvariable=bitrate,
-        values=(
-            "100 Mbit/s",
-            "250 Mbit/s",
-            "500 Mbit/s",
-            "750 Mbit/s",
-            "1 Gbit/s",
-            "Unlimited",
-        ),
+        values=bitrate_values,
         width=12,
         state="readonly",
     ).grid(column=1, row=4, sticky="W")
