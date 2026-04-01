@@ -109,7 +109,7 @@ class Reader:
 def append_to_chunks(chunks, data, chunk_max_data_bytes):
     """
     Append data to the right of the chunks deque, filling chunks that have
-    space.
+    space. Blocks if the deque is full.
 
     :param chunks: A deque of chunks (bytes and bytearrays)
     :param data: bytes, to be store in chunks
