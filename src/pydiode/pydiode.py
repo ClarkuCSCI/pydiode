@@ -230,10 +230,21 @@ def main():
             # Receive from the network using the main thread
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
                 sock.bind((args.read_ip, args.port))
-                # Use macOS's maximum RCVBUF size, which is larger than its
+                # Aim for macOS's maximum RCVBUF size, which is larger than its
                 # default. Linux's default matches its maximum, and is smaller
                 # than macOS's. On Linux, requesting a larger size is ignored.
-                sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 8388608)
+                # On macOS, reqesting a larger size throws an exception.
+                # On macOS, the limit is higher on Apple Silicon.
+                for b in [7456540, 8388608]:
+                    try:
+                        sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, b)
+                    except OSError:
+                        logging.info(f"Failed to set SO_RCVBUF to {b}")
+                logging.info(
+                    "SO_RCVBUF is "
+                    f"{sock.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF)}"
+                    " bytes"
+                )
                 receive(q, packet_details, sock)
             if args.packet_details:
                 write_packet_details(args.packet_details, packet_details)
