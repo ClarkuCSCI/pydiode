@@ -1,5 +1,4 @@
 import argparse
-from collections import deque
 import logging
 import queue
 import socket
@@ -14,7 +13,7 @@ from .common import (
     UDP_MAX_BYTES,
     write_packet_details,
 )
-from .send import DiodeTransport, read, send
+from .send import BoundedDeque, DiodeTransport, read, send
 from .receive import receive, write
 
 
@@ -40,7 +39,9 @@ class ChunkConfig:
             # packets without exceeding max_bitrate?
             self.chunk_max_packets = chunk_max_packets
             self.chunk_duration = (
-                chunk_max_packets * UDP_MAX_BYTES * BYTE / max_bitrate
+                (chunk_max_packets * UDP_MAX_BYTES * BYTE / max_bitrate)
+                if max_bitrate
+                else 0
             )
         # Calculate chunk_max_packets based on chunk_duration
         else:
@@ -99,8 +100,11 @@ def main():
     send_parser.add_argument(
         "--max-bitrate",
         type=int,
-        help="Maximum number of bits transferred per second",
-        default=100000000,
+        help=(
+            "Maximum number of bits transferred per second, "
+            "or 0 to send as fast as possible"
+        ),
+        default=1000000000,
     )
     send_parser.add_argument(
         "--chunk-duration",
@@ -155,15 +159,15 @@ def main():
         logging.debug(f"chunk_max_data_bytes={cc.chunk_max_data_bytes}")
 
         try:
-            # Deque of chunks to be sent
-            chunks = deque()
+            # Deque of chunks to be sent. Holds at most three chunks.
+            chunks = BoundedDeque(3)
             # To indicate that reading should stop
-            f = queue.Queue()
+            finished = threading.Event()
             packet_details = [] if args.packet_details else None
             # Read from STDIN using a separate thread
             t = threading.Thread(
                 target=read,
-                args=(chunks, cc.chunk_max_data_bytes, cc.chunk_duration, f),
+                args=(chunks, cc.chunk_max_data_bytes, finished),
             )
             # Initialize a socket for sending data
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
@@ -206,7 +210,7 @@ def main():
                 raise e
         finally:
             # Indicate that reading should stop
-            f.put(True)
+            finished.set()
             # If the thread was started, wait for it to terminate
             if t.is_alive():
                 t.join()
@@ -226,6 +230,10 @@ def main():
             # Receive from the network using the main thread
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
                 sock.bind((args.read_ip, args.port))
+                # Use macOS's maximum RCVBUF size, which is larger than its
+                # default. Linux's default matches its maximum, and is smaller
+                # than macOS's. On Linux, requesting a larger size is ignored.
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 8388608)
                 receive(q, packet_details, sock)
             if args.packet_details:
                 write_packet_details(args.packet_details, packet_details)

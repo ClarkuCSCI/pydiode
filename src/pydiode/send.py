@@ -1,3 +1,4 @@
+from collections import deque
 import hashlib
 import logging
 import math
@@ -6,19 +7,48 @@ import select
 import socket
 import stat
 import sys
+import threading
 import time
 
 from .common import log_packet, MAX_PAYLOAD, PACKET_HEADER
 
-# Send the first chunk at least this many times.
-# We have observed elevated packet loss into packet index ~330.
-MIN_WARMUP_CHUNKS = 5
 
-# Sleep after sending this many packets
-PACKET_BURST = 10
+class BoundedDeque:
+    """
+    append() will block if the deque is full.
+    pop() and popleft() will throw an IndexError if the deque is empty, unless
+    wait=True is supplied.
+    """
 
-# Send the EOF chunk at least this many times
-MIN_EOF_CHUNKS = 2
+    def __init__(self, maxsize):
+        self.maxsize = maxsize
+        self.deque = deque()
+        self.mutex = threading.Lock()
+        self.not_empty = threading.Condition(self.mutex)
+        self.not_full = threading.Condition(self.mutex)
+
+    def append(self, item):
+        with self.not_full:
+            while len(self.deque) >= self.maxsize:
+                self.not_full.wait()
+            self.deque.append(item)
+            self.not_empty.notify()
+
+    def pop(self, wait=False):
+        with self.not_empty:
+            while wait and not self.deque:
+                self.not_empty.wait()
+            item = self.deque.pop()
+            self.not_full.notify()
+            return item
+
+    def popleft(self, wait=False):
+        with self.not_empty:
+            while wait and not self.deque:
+                self.not_empty.wait()
+            item = self.deque.popleft()
+            self.not_full.notify()
+            return item
 
 
 class Chunk:
@@ -68,7 +98,7 @@ class Reader:
             # incrementally. We will read the input incrementally, instead of
             # waiting for a fixed number of bytes to become available.
             # This isn't necessary with files, and doesn't work on Windows.
-            while self.finished.empty():
+            while not self.finished.is_set():
                 r, _, _ = select.select([sys.stdin.fileno()], [], [], 0.1)
                 if r:
                     return os.read(
@@ -79,7 +109,7 @@ class Reader:
 def append_to_chunks(chunks, data, chunk_max_data_bytes):
     """
     Append data to the right of the chunks deque, filling chunks that have
-    space.
+    space. Blocks if the deque is full.
 
     :param chunks: A deque of chunks (bytes and bytearrays)
     :param data: bytes, to be store in chunks
@@ -121,72 +151,27 @@ def append_to_chunks(chunks, data, chunk_max_data_bytes):
             chunks.append(bytearray(data))
 
 
-def read(chunks, chunk_max_data_bytes, chunk_duration, finished):
+def read(chunks, chunk_max_data_bytes, finished):
     """
     Read data from STDIN, and store it into the chunks deque.
 
     :param chunks: A deque of chunks (bytes and bytearrays)
     :param chunk_max_data_bytes: The maximum number of bytes stored in a chunk
-    :param chunk_duration: Amount of time needed to send each chunk
-    :param finished: A queue used to indicate that reading should stop
+    :param finished: An Event used to indicate that reading should stop
     """
+    # Hash of the sent data, for verification by receiver
+    sha = hashlib.sha256()
     reader = Reader(chunk_max_data_bytes, finished)
     data = reader.read()
     # Until EOF is encountered
-    while data and finished.empty():
+    while data and not finished.is_set():
         logging.debug(f"Read {len(data)} bytes of data")
         append_to_chunks(chunks, data, chunk_max_data_bytes)
-        while len(chunks) > 3 and finished.empty():
-            # At least the first and second chunks will be full.
-            # Wait for chunks to be sent.
-            time.sleep(chunk_duration)
+        sha.update(data)
         data = reader.read()
     # Signal there won't be more data
     chunks.append(None)
-
-
-class Sleeper:
-    def __init__(self, n_packets, duration):
-        # The sleep method will be called once for each packet
-        self.n_packets = n_packets
-        # We actually sleep every PACKET_BURST packets
-        self.n_sleeps = math.ceil(n_packets / PACKET_BURST)
-        # The number of times the sleep method has been called so far
-        self.p = 0
-        # The number of actual sleeps we've performed so far
-        self.s = 0
-        # Eventually, this much time should pass
-        self.duration = duration
-        self.start = time.time()
-
-    def sleep(self):
-        self.p += 1
-        if (self.p % PACKET_BURST) == 0:
-            self.s += 1
-            if self.s > self.n_sleeps:
-                raise IndexError(f"Already slept {self.n_sleeps} times")
-            # How much time should elapse from start by the end of this sleep?
-            target_elapsed = (self.s / self.n_sleeps) * self.duration
-            already_elapsed = time.time() - self.start
-            sleep_duration = target_elapsed - already_elapsed
-            if sleep_duration > 0:
-                logging.debug(f"Sleeping {sleep_duration:.5f} seconds")
-                time.sleep(sleep_duration)
-
-    def sleep_remainder(self):
-        # If we haven't yet slept for the specified number of times, we will
-        # perform one big sleep to fill the remaining time
-        if self.s < self.n_sleeps:
-            # How much time should elapse from start by the end of this sleep?
-            already_elapsed = time.time() - self.start
-            sleep_duration = self.duration - already_elapsed
-            if sleep_duration > 0:
-                logging.debug(
-                    f"Sleeping remaining {sleep_duration:.5f} seconds"
-                )
-                time.sleep(sleep_duration)
-            # Record that we have met our "sleep quota"
-            self.s = self.n_sleeps
+    chunks.append(sha.digest())
 
 
 class DiodeTransport:
@@ -216,26 +201,27 @@ def _send_chunk(
     Send packets containing all the data in the chunk, possibly redundantly
     until the target number of packets is sent.
     """
-    start = time.time()
+    start = time.monotonic()
     # Wrap the chunk bytes in a helper class
     c = Chunk(chunk, color, chunk_max_packets)
     # Send the data over the network
     logging.debug(f"{c.n_packets} packets needed to send {color} chunk")
     for r in range(redundancy):
-        sleeper = Sleeper(chunk_max_packets, chunk_duration)
+        target_elapsed = chunk_duration / chunk_max_packets
         logging.debug(f"Send iteration {r + 1}/{redundancy}")
         for data in c:
+            start = time.monotonic()
             transport.sendto(data)
             log_packet("Sent", data)
             if (color == b"R" or color == b"B") and packet_details is not None:
                 packet_details.append(data)
-            sleeper.sleep()
-        # Sleep for any remaining time (i.e., if the number of packets isn't a
-        # multiple of PACKET_BURST)
-        sleeper.sleep_remainder()
+            already_elapsed = time.monotonic() - start
+            sleep_duration = target_elapsed - already_elapsed
+            if sleep_duration > 0:
+                time.sleep(sleep_duration)
     logging.debug(
         f"Sent {color} chunk of length {len(chunk)} "
-        f"in {time.time() - start:.5f} seconds"
+        f"in {time.monotonic() - start:.5f} seconds"
     )
 
 
@@ -260,13 +246,6 @@ def send(
     # The current chunk color
     color = b"R"
 
-    # Hash of the sent data, for verification by receiver
-    sha = hashlib.sha256()
-
-    # Mitigate early packet loss by sending the first chunk multiple times
-    warmup = True
-    warmup_redundancy = MIN_WARMUP_CHUNKS + redundancy - 1
-
     # Send data until a None chunk is encountered, indicating EOF
     prev_chunk = None
     while True:
@@ -275,13 +254,13 @@ def send(
             prev_chunk = chunk
             # There will never be more data
             if chunk is None:
-                digest = sha.digest()
+                digest = chunks.popleft(wait=True)
                 logging.debug(f"EOF's digest: {digest.hex()}")
                 _send_chunk(
                     digest,
                     packet_details,
                     b"K",
-                    MIN_EOF_CHUNKS + redundancy - 1,
+                    redundancy,
                     chunk_duration,
                     chunk_max_packets,
                     transport,
@@ -289,17 +268,15 @@ def send(
                 break
             # We have a chunk of data to send
             else:
-                sha.update(chunk)
                 _send_chunk(
                     chunk,
                     packet_details,
                     color,
-                    redundancy if not warmup else warmup_redundancy,
+                    redundancy,
                     chunk_duration,
                     chunk_max_packets,
                     transport,
                 )
-                warmup = False
                 # Switch the color
                 color = b"B" if color == b"R" else b"R"
         # If there were no chunks in the deque
@@ -319,4 +296,4 @@ def send(
             # Wait for data
             else:
                 logging.debug("Waiting for data")
-                time.sleep(chunk_duration)
+                time.sleep(0.01)
