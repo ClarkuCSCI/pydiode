@@ -12,7 +12,7 @@ BYTE = 8
 REDUNDANCY = 2
 # Extra time needed for transfers, considering more than just bitrate and
 # redundancy. Determined experimentally with a 1 Gbit transfer.
-OVERHEAD = 1.085
+OVERHEAD = 2
 # Increment progress bars every 25 milliseconds, for smooth animation.
 INCREMENT_INTERVAL = 25
 # Test message
