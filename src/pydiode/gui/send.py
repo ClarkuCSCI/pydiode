@@ -83,6 +83,8 @@ def get_increment_size(sources_list, progress_bar, bitrate_int):
     for source in sources_list:
         size += os.path.getsize(source)
     # How much time will the transfer take, in milliseconds?
+    # If sending with an unlimited bitrate, approximate as 1 Gbit/sec
+    bitrate_int = bitrate_int if bitrate_int else 1_000_000_000
     est_time = size * BYTE / bitrate_int * REDUNDANCY * OVERHEAD * 1000
     # By how much do we increment each time?
     n_increments = est_time / INCREMENT_INTERVAL
