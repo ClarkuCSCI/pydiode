@@ -98,7 +98,9 @@ def bitrate_str_to_int(bitrate_str):
     """
     suffix_mult = {" Mbit/s": 1_000_000, " Gbit/s": 1_000_000_000}
     for suffix, mult in suffix_mult.items():
-        if bitrate_str.endswith(suffix):
+        if bitrate_str == "Unlimited":
+            return 0
+        elif bitrate_str.endswith(suffix):
             return int(bitrate_str.replace(suffix, "")) * mult
     raise ValueError(f"Unknown bitrate format: {bitrate_str}")
 

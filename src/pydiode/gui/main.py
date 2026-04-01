@@ -212,11 +212,12 @@ def gui_main():
             "500 Mbit/s",
             "750 Mbit/s",
             "1 Gbit/s",
+            "Unlimited",
         ),
         width=12,
         state="readonly",
     ).grid(column=1, row=4, sticky="W")
-    bitrate.set(config["pydiode"].get("bitrate", "100 Mbit/s"))
+    bitrate.set(config["pydiode"].get("bitrate", "1 Gbit/s"))
     receive_repeatedly = BooleanVar()
     ttk.Checkbutton(
         settings_inner,
