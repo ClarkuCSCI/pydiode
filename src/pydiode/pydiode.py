@@ -100,7 +100,10 @@ def main():
     send_parser.add_argument(
         "--max-bitrate",
         type=int,
-        help="Maximum number of bits transferred per second",
+        help=(
+            "Maximum number of bits transferred per second, "
+            "or 0 to send as fast as possible"
+        ),
         default=1000000000,
     )
     send_parser.add_argument(
