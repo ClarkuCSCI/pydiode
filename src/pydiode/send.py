@@ -10,7 +10,7 @@ import sys
 import threading
 import time
 
-from .common import log_packet, MAX_PAYLOAD, PACKET_HEADER
+from .common import log_packet, PACKET_HEADER
 
 
 class BoundedDeque:
@@ -58,17 +58,20 @@ class Chunk:
     then the iterator will repeat packets for redundancy.
     """
 
-    def __init__(self, data, color, chunk_max_packets):
+    def __init__(self, data, color, chunk_max_packets, max_payload):
         self.data = data
         self.color = color
-        self.n_packets = math.ceil(len(data) / MAX_PAYLOAD)
+        self.n_packets = math.ceil(len(data) / max_payload)
         self.chunk_max_packets = chunk_max_packets
+        self.max_payload = max_payload
 
     def __iter__(self):
         for p in range(self.chunk_max_packets):
             i = p % self.n_packets
-            payload = self.data[i * MAX_PAYLOAD : ((i + 1) * MAX_PAYLOAD)]
-            padding = bytes(MAX_PAYLOAD - len(payload))
+            payload = self.data[
+                i * self.max_payload : ((i + 1) * self.max_payload)
+            ]
+            padding = bytes(self.max_payload - len(payload))
             header = PACKET_HEADER.pack(
                 self.color, self.n_packets, i, len(payload)
             )
@@ -195,6 +198,7 @@ def _send_chunk(
     redundancy,
     chunk_duration,
     chunk_max_packets,
+    max_payload,
     transport,
 ):
     """
@@ -203,7 +207,7 @@ def _send_chunk(
     """
     chunk_start = time.monotonic()
     # Wrap the chunk bytes in a helper class
-    c = Chunk(chunk, color, chunk_max_packets)
+    c = Chunk(chunk, color, chunk_max_packets, max_payload)
     # Send the data over the network
     logging.debug(f"{c.n_packets} packets needed to send {color} chunk")
     for r in range(redundancy):
@@ -230,6 +234,7 @@ def send(
     packet_details,
     chunk_duration,
     chunk_max_packets,
+    max_payload,
     redundancy,
     transport,
 ):
@@ -240,6 +245,7 @@ def send(
     :param packet_details: A list for packet data, or None
     :param chunk_duration: Amount of time needed to send each chunk
     :param chunk_max_packets: Maximum number of packets per chunk
+    :param max_payload: Maximum payload size per packet
     :param redundancy: How many times to transfer the data
     :param transport: Send data using this wrapper around a UDP socket
     """
@@ -263,6 +269,7 @@ def send(
                     redundancy,
                     chunk_duration,
                     chunk_max_packets,
+                    max_payload,
                     transport,
                 )
                 break
@@ -275,6 +282,7 @@ def send(
                     redundancy,
                     chunk_duration,
                     chunk_max_packets,
+                    max_payload,
                     transport,
                 )
                 # Switch the color
@@ -291,6 +299,7 @@ def send(
                     1,  # Single redundancy for greater responsiveness
                     chunk_duration,
                     chunk_max_packets,
+                    max_payload,
                     transport,
                 )
             # Wait for data

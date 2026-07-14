@@ -8,9 +8,7 @@ import threading
 import pydiode.common
 from .common import (
     BYTE,
-    MAX_PAYLOAD,
     PACKET_HEADER,
-    UDP_MAX_BYTES,
     write_packet_details,
 )
 from .send import BoundedDeque, DiodeTransport, read, send
@@ -23,23 +21,28 @@ class ChunkConfig:
     - chunk_max_packets
     - chunk_duration
     - chunk_max_data_bytes
+    - max_payload, the maximum payload size per packet
 
     Note: We don't account for UDP and IPv4 headers, so our actual maximum
     bitrate could be slightly higher than our target.
     """
 
-    def __init__(self, chunk_max_packets, chunk_duration, max_bitrate):
+    def __init__(
+        self, chunk_max_packets, chunk_duration, max_bitrate, packet_size
+    ):
         """
-        max_bitrate is required, and either chunk_max_packets or
-        chunk_duration should be non-null.
+        max_bitrate and packet_size are required.
+        Either chunk_max_packets or chunk_duration should be non-null.
         """
+        # Calculate how much space is left for payloads in each packet
+        self.max_payload = packet_size - PACKET_HEADER.size
         # Calculate chunk_duration based on chunk_max_packets
         if chunk_max_packets:
             # How many seconds do we need to send this many fully loaded
             # packets without exceeding max_bitrate?
             self.chunk_max_packets = chunk_max_packets
             self.chunk_duration = (
-                (chunk_max_packets * UDP_MAX_BYTES * BYTE / max_bitrate)
+                (chunk_max_packets * packet_size * BYTE / max_bitrate)
                 if max_bitrate
                 else 0
             )
@@ -49,10 +52,10 @@ class ChunkConfig:
             # exceeding max_bitrate?
             self.chunk_duration = chunk_duration
             self.chunk_max_packets = int(
-                chunk_duration * max_bitrate / BYTE / UDP_MAX_BYTES
+                chunk_duration * max_bitrate / BYTE / packet_size
             )
         # How much data will fit in this chunk?
-        self.chunk_max_data_bytes = self.chunk_max_packets * MAX_PAYLOAD
+        self.chunk_max_data_bytes = self.chunk_max_packets * self.max_payload
 
 
 def main():
@@ -106,6 +109,24 @@ def main():
         ),
         default=1000000000,
     )
+    # Linux can send and receive (non-)broadcast packets of up to 65507 bytes.
+    # macOS can receive (non-)broadcast packets of up to 65507 bytes.
+    # Experimentally, these are the maximum UDP payloads I can send on macOS:
+    # - 1472 for broadcast packets
+    # - 9216 for non-broadcast packets
+    # Packets >1472 bytes are fragmented: https://stackoverflow.com/a/15003663/
+    # The limit for non-broadcast packets can be increased by running:
+    # sudo sysctl -w net.inet.udp.maxdgram=65507
+    # For broadcast support, we default to 1472 when running on macOS.
+    send_parser.add_argument(
+        "--packet-size",
+        type=int,
+        help=(
+            "All packets will be this size. Defaults to 1472 bytes on macOS, "
+            "and 65507 bytes on other platforms."
+        ),
+        default=1472 if sys.platform == "darwin" else 65507,
+    )
     send_parser.add_argument(
         "--chunk-duration",
         type=float,
@@ -150,12 +171,15 @@ def main():
             args.chunk_max_packets = 100
 
         cc = ChunkConfig(
-            args.chunk_max_packets, args.chunk_duration, args.max_bitrate
+            args.chunk_max_packets,
+            args.chunk_duration,
+            args.max_bitrate,
+            args.packet_size,
         )
         logging.debug(f"chunk_max_packets={cc.chunk_max_packets}")
         logging.debug(f"chunk_duration={cc.chunk_duration}")
         logging.debug(f"PACKET_HEADER.size={PACKET_HEADER.size}")
-        logging.debug(f"MAX_PAYLOAD={MAX_PAYLOAD}")
+        logging.debug(f"max_payload={cc.max_payload}")
         logging.debug(f"chunk_max_data_bytes={cc.chunk_max_data_bytes}")
 
         try:
@@ -182,6 +206,7 @@ def main():
                     packet_details,
                     cc.chunk_duration,
                     cc.chunk_max_packets,
+                    cc.max_payload,
                     args.redundancy,
                     transport,
                 )

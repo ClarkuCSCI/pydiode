@@ -4,18 +4,6 @@ import logging
 import struct
 import sys
 
-# How much data will fit in each packet we send?
-# Linux can send and receive (non-)broadcast packets of up to 65507 bytes.
-# macOS can receive (non-)broadcast packets of up to 65507 bytes.
-# Experimentally, these are the maximum UDP payloads I can send on macOS:
-# - 1472 for broadcast packets
-# - 9216 for non-broadcast packets
-# Packets >1472 bytes are fragmented: https://stackoverflow.com/a/15003663/
-# The limit for non-broadcast packets can be increased by running:
-# sudo sysctl -w net.inet.udp.maxdgram=65507
-# For broadcast support, we default to 1472 when running on macOS.
-UDP_MAX_BYTES = 1472 if sys.platform == "darwin" else 65507
-
 # Number of bits in a byte
 BYTE = 8
 
@@ -25,9 +13,6 @@ BYTE = 8
 # Payload length, represented as an unsigned short (2 bytes)
 # The payload, represented as an array of bytes
 PACKET_HEADER = struct.Struct("<cHHH")
-
-# Maximum payload length
-MAX_PAYLOAD = UDP_MAX_BYTES - PACKET_HEADER.size
 
 # Whether to log details about each packet sent/received.
 # Only log packet details when debugging, due to CPU overhead.
