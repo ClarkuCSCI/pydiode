@@ -21,28 +21,28 @@ class ChunkConfig:
     - chunk_max_packets
     - chunk_duration
     - chunk_max_data_bytes
-    - max_payload, the maximum payload size per packet
+    - max_payload, the maximum user payload size per packet
 
     Note: We don't account for UDP and IPv4 headers, so our actual maximum
     bitrate could be slightly higher than our target.
     """
 
     def __init__(
-        self, chunk_max_packets, chunk_duration, max_bitrate, packet_size
+        self, chunk_max_packets, chunk_duration, max_bitrate, payload_size
     ):
         """
-        max_bitrate and packet_size are required.
+        max_bitrate and payload_size are required.
         Either chunk_max_packets or chunk_duration should be non-null.
         """
-        # Calculate how much space is left for payloads in each packet
-        self.max_payload = packet_size - PACKET_HEADER.size
+        # Calculate how much space is left for user payloads in each packet
+        self.max_payload = payload_size - PACKET_HEADER.size
         # Calculate chunk_duration based on chunk_max_packets
         if chunk_max_packets:
             # How many seconds do we need to send this many fully loaded
             # packets without exceeding max_bitrate?
             self.chunk_max_packets = chunk_max_packets
             self.chunk_duration = (
-                (chunk_max_packets * packet_size * BYTE / max_bitrate)
+                (chunk_max_packets * payload_size * BYTE / max_bitrate)
                 if max_bitrate
                 else 0
             )
@@ -52,7 +52,7 @@ class ChunkConfig:
             # exceeding max_bitrate?
             self.chunk_duration = chunk_duration
             self.chunk_max_packets = int(
-                chunk_duration * max_bitrate / BYTE / packet_size
+                chunk_duration * max_bitrate / BYTE / payload_size
             )
         # How much data will fit in this chunk?
         self.chunk_max_data_bytes = self.chunk_max_packets * self.max_payload
@@ -119,10 +119,11 @@ def main():
     # sudo sysctl -w net.inet.udp.maxdgram=65507
     # For broadcast support, we default to 1472 when running on macOS.
     send_parser.add_argument(
-        "--packet-size",
+        "--payload-size",
         type=int,
         help=(
-            "All packets will be this size. Defaults to 1472 bytes on macOS, "
+            "All UDP packets will contain payloads of this size. "
+            "Defaults to 1472 bytes on macOS, "
             "and 65507 bytes on other platforms."
         ),
         default=1472 if sys.platform == "darwin" else 65507,
@@ -174,7 +175,7 @@ def main():
             args.chunk_max_packets,
             args.chunk_duration,
             args.max_bitrate,
-            args.packet_size,
+            args.payload_size,
         )
         logging.debug(f"chunk_max_packets={cc.chunk_max_packets}")
         logging.debug(f"chunk_duration={cc.chunk_duration}")
