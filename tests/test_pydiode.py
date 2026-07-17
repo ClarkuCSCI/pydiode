@@ -346,7 +346,7 @@ class TestRetransmits(unittest.TestCase):
         chunks = BoundedDeque(3)
         chunks.append(b"Hello")
         t = threading.Thread(
-            target=lambda: send(chunks, None, 0.01, 10, 2, None)
+            target=lambda: send(chunks, None, 0.01, 10, 1400, 2, None)
         )
         t.start()
         time.sleep(0.01)
