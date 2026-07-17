@@ -245,7 +245,7 @@ def send(
     :param packet_details: A list for packet data, or None
     :param chunk_duration: Amount of time needed to send each chunk
     :param chunk_max_packets: Maximum number of packets per chunk
-    :param max_payload: Maximum payload size per packet
+    :param max_payload: Maximum user payload size per packet
     :param redundancy: How many times to transfer the data
     :param transport: Send data using this wrapper around a UDP socket
     """
