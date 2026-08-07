@@ -29,7 +29,7 @@ class TestIO(unittest.TestCase):
                 shell=True,
             )
             checksum = subprocess.Popen(
-                "shasum -a 256",
+                "sha256sum",
                 stdin=receive.stdout,
                 stdout=subprocess.PIPE,
                 shell=True,
