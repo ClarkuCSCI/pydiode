@@ -3,8 +3,10 @@ import base64
 import csv
 import logging
 import os
+import queue
 import select
 import sys
+import threading
 
 READ_MAX_BYTES = 1000
 MAX_WAIT = 0.1
@@ -36,50 +38,71 @@ def mux(pipes):
                     ]
                 )
                 logging.debug(f"Wrote row to STDOUT")
-            # TODO Retry connecting if we get a BrokenPipeError
             sys.stdout.flush()
     finally:
         for fd in fd_to_name.keys():
             os.close(fd)
 
 
-# TODO Create threads for each output pipe, to handle blocking
-# TODO Read from STDIN, and place data into buffers for each thread
-def demux(pipes):
-    # Maps pipe names to their file descriptors, when they are open
-    name_to_fd = {}
-    # Maps pipe names to their paths
-    name_to_path = {os.path.basename(p): p for p in pipes}
-
-    def write(name, data):
-        if name in name_to_fd:
+def write(pipe, q):
+    fd = None
+    data = q.get()
+    # If data is None, the thread should join
+    # If data is b"", EOF was encountered
+    # Otherwise, data should be written out
+    while data is not None:
+        if fd:
             if data:
-                os.write(name_to_fd[name], data)
-                logging.debug(f"Wrote {len(data)} bytes to {name}")
+                os.write(fd, data)
+                logging.debug(f"Wrote {len(data)} bytes to {pipe}")
             else:
                 # If EOF was encountered
-                os.close(name_to_fd.pop(name))
-                logging.debug(f"Closed {name} due to EOF")
-        elif name in name_to_path:
+                os.close(fd)
+                fd = None
+                logging.debug(f"Closed {pipe} due to EOF")
+            data = q.get()
+        else:
             # The pipe must be opened before data can be written
             try:
-                name_to_fd[name] = os.open(name_to_path[name], os.O_WRONLY)
-                logging.debug(f"Opened {name}")
-                write(name, data)
+                fd = os.open(pipe, os.O_WRONLY)
+                logging.debug(f"Opened {pipe}")
             except FileNotFoundError as e:
-                print(e, file=sys.stderr)
-        else:
-            # Pipe names can be invalid if the input stream is malformed
-            logging.warning(f"Invalid pipe: {name[:20]}")
+                logging.warning(e)
+                break
+    if fd:
+        os.close(fd)
+
+
+def demux(pipes):
+    name_to_queue = {}
+    name_to_thread = {}
+    for pipe in pipes:
+        name = os.path.basename(pipe)
+        q = queue.Queue()
+        name_to_queue[name] = q
+        name_to_thread[name] = threading.Thread(
+            target=write,
+            args=(
+                pipe,
+                q,
+            ),
+        )
+        name_to_thread[name].start()
 
     try:
         reader = csv.DictReader(sys.stdin, fieldnames=["name", "data"])
         for row in reader:
             logging.debug(f"Read row from STDIN")
-            write(row["name"], base64.b64decode(row["data"]))
+            if row["name"] in name_to_queue:
+                name_to_queue[row["name"]].put(base64.b64decode(row["data"]))
+            else:
+                # Pipe names can be invalid if the input stream is malformed
+                logging.warning(f"Invalid pipe: {row['name'][:20]}")
     finally:
-        for fd in name_to_fd.values():
-            os.close(fd)
+        for name, q in name_to_queue.items():
+            # Threads should be joinable after they encounter None
+            q.put(None)
+            name_to_thread[name].join()
 
 
 def main():

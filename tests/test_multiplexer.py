@@ -16,8 +16,7 @@ class TestMultiplexer(unittest.TestCase):
             out_path = tmppath / "out"
             in_path.mkdir()
             out_path.mkdir()
-            # TODO Use multiple fifos, after multithreading is implemented
-            fifos = ["fifo1"]
+            fifos = ["fifo1", "fifo2"]
             in_fifos = [in_path / f for f in fifos]
             out_fifos = [out_path / f for f in fifos]
             for f in in_fifos + out_fifos:
