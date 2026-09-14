@@ -1,5 +1,17 @@
+"""
+multiplexer.py
+
+Usage notes:
+- The muxer will never exit unless it receives a signal (e.g., SIGTERM).
+- After the demuxer reads EOF from STDIN, it will exit after it writes all
+  buffered data to its output pipes.
+- The demuxer will buffer data in memory without limit until another program
+  reads from its output pipes.
+"""
+
 import argparse
 import base64
+import binascii
 import csv
 import logging
 import os
@@ -94,7 +106,12 @@ def demux(pipes):
         for row in reader:
             logging.debug(f"Read row from STDIN")
             if row["name"] in name_to_queue:
-                name_to_queue[row["name"]].put(base64.b64decode(row["data"]))
+                try:
+                    name_to_queue[row["name"]].put(
+                        base64.b64decode(row["data"])
+                    )
+                except binascii.Error as e:
+                    logging.warning(e)
             else:
                 # Pipe names can be invalid if the input stream is malformed
                 logging.warning(f"Invalid pipe: {row['name'][:20]}")
