@@ -20,7 +20,9 @@ import select
 import sys
 import threading
 
-READ_MAX_BYTES = 1000
+# macOS and Linux's default max pipe buffer size is 64 KiB
+READ_MAX_BYTES = 2**16
+# For responsiveness to signals (e.g., SIGINT)
 MAX_WAIT = 0.1
 
 # TODO Currently, we output the data in a CSV format, which increases the size
