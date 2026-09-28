@@ -15,6 +15,7 @@ import binascii
 import csv
 import logging
 import os
+from pathlib import Path
 import queue
 import select
 import sys
@@ -30,16 +31,14 @@ MAX_WAIT = 0.1
 
 
 def mux(pipes):
-    # Maps named pipe file descriptors to their paths and names
+    # Maps named pipe file descriptors to their paths
     fd_to_path = {}
-    fd_to_name = {}
 
     def open_pipe(pipe):
         try:
             pipe_fd = os.open(pipe, os.O_RDONLY | os.O_NONBLOCK)
             logging.debug(f"Opened {pipe}")
-            fd_to_path[pipe_fd] = pipe
-            fd_to_name[pipe_fd] = os.path.basename(pipe)
+            fd_to_path[pipe_fd] = Path(pipe)
         except FileNotFoundError as e:
             print(e, file=sys.stderr)
 
@@ -48,25 +47,26 @@ def mux(pipes):
             open_pipe(pipe)
         writer = csv.writer(sys.stdout)
         while True:
-            ready, _, _ = select.select(fd_to_name.keys(), [], [], MAX_WAIT)
+            ready, _, _ = select.select(fd_to_path.keys(), [], [], MAX_WAIT)
             for r in ready:
                 data = os.read(r, READ_MAX_BYTES)
-                name = fd_to_name[r]
+                path = fd_to_path[r]
                 if data:
-                    logging.debug(f"Read {len(data)} bytes from {name}")
+                    logging.debug(f"Read {len(data)} bytes from {path.name}")
                 else:
                     # If data is b"", EOF was encountered. On Linux, the pipe
                     # will always be marked as ready, so we must reopen it.
-                    del fd_to_name[r]
                     open_pipe(fd_to_path.pop(r))
                     os.close(r)
-                    logging.debug(f"Closed old {name} due to EOF")
+                    logging.debug(f"Closed old {path.name} due to EOF")
                 # Write either the data or empty bytes indicating EOF
-                writer.writerow([name, base64.b64encode(data).decode("ascii")])
+                writer.writerow(
+                    [path.name, base64.b64encode(data).decode("ascii")]
+                )
                 logging.debug(f"Wrote row to STDOUT")
             sys.stdout.flush()
     finally:
-        for fd in fd_to_name.keys():
+        for fd in fd_to_path.keys():
             os.close(fd)
 
 
