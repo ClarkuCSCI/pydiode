@@ -104,14 +104,10 @@ def demux(pipes):
     name_to_thread = {}
     for pipe in pipes:
         name = os.path.basename(pipe)
-        q = queue.Queue()
-        name_to_queue[name] = q
+        name_to_queue[name] = queue.Queue()
         name_to_thread[name] = threading.Thread(
             target=write,
-            args=(
-                pipe,
-                q,
-            ),
+            args=(pipe, name_to_queue[name]),
         )
         name_to_thread[name].start()
 
