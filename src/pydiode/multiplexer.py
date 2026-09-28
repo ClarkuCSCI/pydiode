@@ -79,14 +79,20 @@ def write(pipe, q):
     while data is not None:
         if fd:
             if data:
-                os.write(fd, data)
-                logging.debug(f"Wrote {len(data)} bytes to {pipe}")
+                try:
+                    os.write(fd, data)
+                    logging.debug(f"Wrote {len(data)} bytes to {pipe}")
+                    data = q.get()
+                except BrokenPipeError:
+                    os.close(fd)
+                    fd = None
+                    logging.debug(f"Closed {pipe} due to broken pipe")
             else:
                 # If EOF was encountered
                 os.close(fd)
                 fd = None
                 logging.debug(f"Closed {pipe} due to EOF")
-            data = q.get()
+                data = q.get()
         else:
             # The pipe must be opened before data can be written
             try:
