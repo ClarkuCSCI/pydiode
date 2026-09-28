@@ -80,9 +80,13 @@ def write(pipe, q):
         if fd:
             if data:
                 try:
-                    os.write(fd, data)
-                    logging.debug(f"Wrote {len(data)} bytes to {pipe}")
-                    data = q.get()
+                    written = os.write(fd, data)
+                    logging.debug(f"Wrote {written} bytes to {pipe}")
+                    # If the data was written completely, get more data
+                    if written == len(data):
+                        data = q.get()
+                    else:
+                        data = data[written:]
                 except BrokenPipeError:
                     os.close(fd)
                     fd = None
