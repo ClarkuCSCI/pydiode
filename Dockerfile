@@ -1,4 +1,4 @@
-FROM --platform=linux/amd64 python:3.11-bullseye
+FROM --platform=linux/amd64 python:3.11-trixie
 MAINTAINER PeStory@clarku.edu
 
 # Add source code
