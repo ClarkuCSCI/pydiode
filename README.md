@@ -81,6 +81,15 @@ Type some information into the receiver. When finished, press enter, then type C
 
 With debug-level logging, you will see details about each packet sent and received. Omit the `--debug` paramater when sending large amount of data, since debug-level logging incurs significant CPU usage.
 
+## Multiplexer Usage
+
+The `pydiode-multiplexer` command allows sending data from multiple programs through a single data diode. Each sending program writes to [a named pipe](https://en.wikipedia.org/wiki/Named_pipe). Running in `mux` mode, the multiplexer combines this data into a single output stream, which can be transmitted using pydiode. Running in `demux` mode, the multiplexer splits a single input stream into multiple output streams, which it writes to named pipes on the receiver. Finally, each receiving program reads from the appropriate named pipe.
+
+Documentation:
+```
+pydiode-multiplexer --help
+```
+
 ## Development
 
 ### Run Unit Tests
