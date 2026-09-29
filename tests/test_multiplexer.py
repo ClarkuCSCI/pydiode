@@ -23,12 +23,11 @@ class TestMultiplexer(unittest.TestCase):
                 os.mkfifo(f)
             # Start the muxer and demuxer
             muxer = subprocess.Popen(
-                [sys.executable, "-m", "pydiode.multiplexer", "mux"] + in_fifos,
+                ["pydiode-multiplexer", "mux"] + in_fifos,
                 stdout=subprocess.PIPE,
             )
             demuxer = subprocess.Popen(
-                [sys.executable, "-m", "pydiode.multiplexer", "demux"]
-                + out_fifos,
+                ["pydiode-multiplexer", "demux"] + out_fifos,
                 stdin=muxer.stdout,
             )
             # Write data to the in fifos

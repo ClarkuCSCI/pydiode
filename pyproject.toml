@@ -24,3 +24,4 @@ classifiers = [
 [project.scripts]
 pydiode = "pydiode.pydiode:main"
 pydiode-gui = "pydiode.gui.main:main"
+pydiode-multiplexer = "pydiode.multiplexer:main"

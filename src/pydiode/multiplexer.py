@@ -148,7 +148,7 @@ def main():
                     Multiplex or demultiplex streams. When multiplexing,
                     multiple input streams are combined into a single output
                     stream. When demultiplexing, a single input stream is
-                    separated into multiple output streams.
+                    split into multiple output streams.
                     """
     )
     parser.add_argument(
