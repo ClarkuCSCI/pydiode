@@ -101,6 +101,6 @@ To speed up local installs (i.e., `pip install .`), remove large files from the 
 
 ## Citation
 
-If you use this code as part of a publication, please cite [our PEP '23 paper:](https://pep23.com/assets/pdf/pep23-paper7.pdf)
+If you use this code as part of a publication, please cite [our arXiv preprint:](https://doi.org/10.48550/arXiv.2609.35256)
 
-> Peter Story, “Building an Affordable Data Diode to Protect Journalists,” Workshop on Privacy Engineering in Practice (PEP '23), August 2023
+> Peter Story and Gert-Jan den Besten, “Implementing Data Diodes Using Commodity Hardware and Open Source Software,” arXiv preprint, September 2026
