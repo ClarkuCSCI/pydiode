@@ -60,19 +60,19 @@ def receive(q, packet_details, sock):
     completed = {b"R": False, b"B": False}
     # Packets for the chunks
     packets = {b"R": {}, b"B": {}}
+    # Reuse memory for incoming packets, to reduce memory (de)allocations.
+    # IPv4 UDP packet payloads cannot exceed 65507 bytes.
+    # Linux and macOS can both receive packets of this size.
+    data = bytearray(65507)
     while True:
-        # IPv4 UDP packet payloads cannot exceed 65507 bytes.
-        # Linux and macOS can both receive packets of this size.
-        data, _ = sock.recvfrom(65507)
+        n_bytes = sock.recv_into(data)
 
-        color, n_packets, seq, len_payload = PACKET_HEADER.unpack(
-            data[: PACKET_HEADER.size]
-        )
+        color, n_packets, seq, len_payload = PACKET_HEADER.unpack_from(data)
         payload_end = PACKET_HEADER.size + len_payload
 
         log_packet("Received", data)
         if (color == b"R" or color == b"B") and packet_details is not None:
-            packet_details.append(data)
+            packet_details.append(data[:n_bytes])
 
         # If EOF (blacK) packet
         if color == b"K":
