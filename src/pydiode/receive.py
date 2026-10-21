@@ -18,8 +18,8 @@ def write(q, r):
     """
     sha = hashlib.sha256()
     while True:
-        data = q.get()
-        if data is None:
+        chunk = q.get()
+        if chunk is None:
             try:
                 received_digest = sha.digest()
                 eof_digest = q.get(timeout=0.1)
@@ -40,12 +40,12 @@ def write(q, r):
             finally:
                 break
         else:
-            sha.update(data)
-            sys.stdout.buffer.write(data)
-            # For throughput, don't flush after every packet. But for
-            # responsiveness, flush if we don't have another packet ready.
-            if q.empty():
-                sys.stdout.flush()
+            for seq in range(len(chunk)):
+                sha.update(chunk[seq])
+                sys.stdout.buffer.write(chunk[seq])
+            # For throughput, don't flush after every packet.
+            # For responsiveness, flush after every chunk.
+            sys.stdout.flush()
 
 
 def receive(q, packet_details, sock):
@@ -88,9 +88,8 @@ def receive(q, packet_details, sock):
             # Did we complete the chunk?
             if len(packets[color]) == n_packets:
                 logging.debug(f"Packet completed the {color} chunk")
-                # Write each packet to STDOUT
-                for seq in range(n_packets):
-                    q.put(packets[color][seq])
+                # Put the chunk's packets in the queue
+                q.put(packets[color])
                 # Mark this chunk as completed
                 completed[color] = True
                 packets[color] = {}
