@@ -40,9 +40,18 @@ def write(q, r):
             finally:
                 break
         else:
-            for seq in range(len(chunk)):
-                sha.update(chunk[seq])
-                sys.stdout.buffer.write(chunk[seq])
+            # To avoid blocking receive(), we should release the GIL often.
+            # The GIL is only released on SHA updates greater than 2047 bytes.
+            if len(chunk[0]) > 2047:
+                for seq in range(len(chunk)):
+                    sha.update(chunk[seq])
+                    sys.stdout.buffer.write(chunk[seq])
+            # We don't want to join the packets unnecessarily, since it is
+            # expensive for large packets.
+            else:
+                joined = b"".join([chunk[seq] for seq in range(len(chunk))])
+                sha.update(joined)
+                sys.stdout.buffer.write(joined)
             # For throughput, don't flush after every packet.
             # For responsiveness, flush after every chunk.
             sys.stdout.flush()
