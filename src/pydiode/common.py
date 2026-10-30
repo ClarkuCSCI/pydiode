@@ -21,9 +21,7 @@ LOG_PACKETS = False
 
 def log_packet(prefix, data):
     if LOG_PACKETS:
-        color, n_packets, seq, len_payload = PACKET_HEADER.unpack(
-            data[: PACKET_HEADER.size]
-        )
+        color, n_packets, seq, len_payload = PACKET_HEADER.unpack_from(data)
         logging.debug(
             f"{prefix} <Packet color={color} n_packets={n_packets} "
             f"seq={seq} len_payload={len_payload}>"
