@@ -18,8 +18,8 @@ def write(q, r):
     """
     sha = hashlib.sha256()
     while True:
-        data = q.get()
-        if data is None:
+        chunk = q.get()
+        if chunk is None:
             try:
                 received_digest = sha.digest()
                 eof_digest = q.get(timeout=0.1)
@@ -40,12 +40,21 @@ def write(q, r):
             finally:
                 break
         else:
-            sha.update(data)
-            sys.stdout.buffer.write(data)
-            # For throughput, don't flush after every packet. But for
-            # responsiveness, flush if we don't have another packet ready.
-            if q.empty():
-                sys.stdout.flush()
+            # To avoid blocking receive(), we should release the GIL often.
+            # The GIL is only released on SHA updates greater than 2047 bytes.
+            if len(chunk[0]) > 2047:
+                for seq in range(len(chunk)):
+                    sha.update(chunk[seq])
+                    sys.stdout.buffer.write(chunk[seq])
+            # We don't want to join the packets unnecessarily, since it is
+            # expensive for large packets.
+            else:
+                joined = b"".join([chunk[seq] for seq in range(len(chunk))])
+                sha.update(joined)
+                sys.stdout.buffer.write(joined)
+            # For throughput, don't flush after every packet.
+            # For responsiveness, flush after every chunk.
+            sys.stdout.flush()
 
 
 def receive(q, packet_details, sock):
@@ -60,19 +69,19 @@ def receive(q, packet_details, sock):
     completed = {b"R": False, b"B": False}
     # Packets for the chunks
     packets = {b"R": {}, b"B": {}}
+    # Reuse memory for incoming packets, to reduce memory (de)allocations.
+    # IPv4 UDP packet payloads cannot exceed 65507 bytes.
+    # Linux and macOS can both receive packets of this size.
+    data = bytearray(65507)
     while True:
-        # IPv4 UDP packet payloads cannot exceed 65507 bytes.
-        # Linux and macOS can both receive packets of this size.
-        data, _ = sock.recvfrom(65507)
+        n_bytes = sock.recv_into(data)
 
-        color, n_packets, seq, len_payload = PACKET_HEADER.unpack(
-            data[: PACKET_HEADER.size]
-        )
+        color, n_packets, seq, len_payload = PACKET_HEADER.unpack_from(data)
         payload_end = PACKET_HEADER.size + len_payload
 
         log_packet("Received", data)
         if (color == b"R" or color == b"B") and packet_details is not None:
-            packet_details.append(data)
+            packet_details.append(data[:n_bytes])
 
         # If EOF (blacK) packet
         if color == b"K":
@@ -88,9 +97,8 @@ def receive(q, packet_details, sock):
             # Did we complete the chunk?
             if len(packets[color]) == n_packets:
                 logging.debug(f"Packet completed the {color} chunk")
-                # Write each packet to STDOUT
-                for seq in range(n_packets):
-                    q.put(packets[color][seq])
+                # Put the chunk's packets in the queue
+                q.put(packets[color])
                 # Mark this chunk as completed
                 completed[color] = True
                 packets[color] = {}
