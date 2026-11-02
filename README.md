@@ -1,6 +1,6 @@
 # pydiode
 
-Transfer data through a unidirectional network (i.e., a data diode).
+Transfer data through a one-way network (i.e., a data diode).
 
 ## Installation
 
