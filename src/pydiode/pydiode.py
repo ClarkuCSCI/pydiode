@@ -216,16 +216,19 @@ def main():
             exit_code = 0
         # Don't print the full stack trace for known error types
         except OSError as e:
-            if str(e) in {
-                # macOS
-                "[Errno 49] Can't assign requested address",
-                "[Errno 8] nodename nor servname provided, or not known",
-                # Linux
-                "[Errno 99] Cannot assign requested address",
-                "[Errno -2] Name or service not known",
-            }:
+            if (
+                str(e) in {
+                    # macOS
+                    "[Errno 49] Can't assign requested address",
+                    "[Errno 8] nodename nor servname provided, or not known",
+                    # Linux
+                    "[Errno 99] Cannot assign requested address",
+                    "[Errno -2] Name or service not known",
+                }
+                or getattr(e, "winerror", None) in {10049, 11001}
+            ):
                 print(
-                    f"Can't send from IP address",
+                    "Can't send from IP address",
                     args.write_ip,
                     "to",
                     args.read_ip,
@@ -233,7 +236,7 @@ def main():
                 )
                 exit_code = 1
             else:
-                raise e
+                raisee
         finally:
             # Indicate that reading should stop
             finished.set()

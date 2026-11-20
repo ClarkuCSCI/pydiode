@@ -1,5 +1,6 @@
 
 from collections import deque
+import sys
 import hashlib
 import os
 import signal
@@ -188,7 +189,7 @@ class TestIO(unittest.TestCase):
             # Analyze rx.csv and tx.csv
             analysis = subprocess.run(
                 [
-                    "python",
+                    sys.executable,
                     "-m",
                     "pydiode.analyze_details",
                     TX_DETAILS,
@@ -399,30 +400,65 @@ class TestReceiveErrors(unittest.TestCase):
 
 
 class TestKeyboardInterrupt(unittest.TestCase):
+
     def test_interrupt_send(self):
+        creationflags = (
+            subprocess.CREATE_NEW_PROCESS_GROUP
+            if sys.platform == "win32"
+            else 0
+        )
+
+
+
         send = subprocess.Popen(
             ["pydiode", "send", "127.0.0.1", "127.0.0.1"],
             stderr=subprocess.PIPE,
+            creationflags=creationflags,
         )
+    try:
 
         time.sleep(0.1)
-        send.send_signal(signal.SIGINT)
+        
+        if sys.platform == "win32":
+           send.send_signal(signal.CTRL_BREAK_EVENT)
+        else:
+           send.send_signal(signal.SIGINT)
+    
         _, stderr = send.communicate()
-
         self.assertIn(b"KeyboardInterrupt", stderr)
+    finally:
+        if send.poll() is None:
+           send.kill()
+           send.communicate()
 
     def test_interrupt_receive(self):
+        creationflags = (
+            subprocess.CREATE_NEW_PROCESS_GROUP
+            if sys.platform == "win32"
+            else 0
+        )
+
+
+
         receive = subprocess.Popen(
             ["pydiode", "receive", "127.0.0.1"],
             stderr=subprocess.PIPE,
+            creationflags=creationflags,
         )
-
+    try:
         time.sleep(0.1)
-        receive.send_signal(signal.SIGINT)
+
+        if sys.platform == "win32":
+          receive.send_signal(signal.SIGINT)
+        else:
+          receive.send_signal(signal.SIGINT)   
+
         _, stderr = receive.communicate()
-
         self.assertIn(b"KeyboardInterrupt", stderr)
-
+    finally:
+        if receive.poll() is None:
+          receive.kill()
+          receive.communicate()
 
 class TestRetransmits(unittest.TestCase):
     @unittest.mock.patch("pydiode.send._send_chunk")
