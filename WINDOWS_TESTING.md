@@ -1,7 +1,5 @@
 # PyDiode native Windows testing and compatibility findings
 
-This report records problems observed while running PyDiode on native Windows, changes made to the tests, and open issues. Test outcomes below reflect the individual runs recorded during investigation, not a new full-suite run after all modifications.
-
 ## Environment and setup
 
 * PyDiode 1.0.0 was found in a Python 3.11 environment, with `pydiode.exe` discoverable from PowerShell.
